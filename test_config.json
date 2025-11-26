@@ -1,0 +1,21 @@
+{
+  "normalizer": {
+    "language": "en"
+  },
+  "segmenter": {
+    "language": "en",
+    "strategy": "sentence_count",
+    "sentences_per_chunk": 2
+  },
+  "tts": {
+    "language": "english",
+    "voice": "tara",
+    "use_gpu": true,
+    "verbose": false
+  },
+  "stitcher": {
+    "silence_duration_ms": 500,
+    "output_format": "wav"
+  },
+  "skip_normalization": true
+}

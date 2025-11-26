@@ -1,0 +1,27 @@
+{
+  "normalizer": {
+    "language": "en",
+    "input_case": "cased",
+    "verbose": false
+  },
+  "segmenter": {
+    "language": "en",
+    "strategy": "char_count",
+    "max_chars": 300,
+    "sentences_per_chunk": 3
+  },
+  "tts": {
+    "language": "english",
+    "voice": "tara",
+    "use_gpu": true,
+    "n_gpu_layers": -1,
+    "verbose": false
+  },
+  "stitcher": {
+    "silence_duration_ms": 750,
+    "crossfade_duration_ms": 0,
+    "output_format": "mp3",
+    "export_bitrate": "192k"
+  },
+  "skip_normalization": false
+}

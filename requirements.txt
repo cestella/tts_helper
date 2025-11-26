@@ -1,0 +1,24 @@
+# Core dependencies for tts-helper
+spacy>=3.7.0,<4.0.0
+
+# Optional: Advanced text normalization (requires manual installation on macOS)
+# See README.md for macOS installation instructions
+nemo_text_processing>=1.0.0
+
+# Optional: TTS with Orpheus models
+# NOTE: llama-cpp-python requires platform-specific installation
+# See README.md for installation instructions:
+#   macOS (Metal): pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/metal
+#   Linux/Windows: pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+# llama-cpp-python (install manually per platform)
+orpheus-cpp>=0.1.0
+scipy>=1.10.0
+
+# Optional: Audio stitching with pydub
+# NOTE: pydub requires ffmpeg to be installed
+# See README.md for installation instructions:
+#   macOS: brew install ffmpeg
+#   Ubuntu: sudo apt-get install ffmpeg
+#   Windows: Download from https://ffmpeg.org/
+pydub>=0.25.0
+audioop-lts>=0.2.0; python_version >= "3.13"
