@@ -153,6 +153,69 @@ If you want to use Orpheus TTS for speech synthesis, you need to install `llama-
 
 **Note:** Orpheus models will be downloaded automatically on first use (several GB per language).
 
+### Installing Kokoro TTS (Advanced)
+
+If you want to use Kokoro TTS for high-quality, multi-language speech synthesis, you need to install `kokoro-onnx` and download model files.
+
+**Prerequisites:**
+- Python 3.10+
+- ~200MB disk space for model files
+
+**Step-by-step installation:**
+
+1. **Install kokoro-onnx:**
+   ```bash
+   pip install kokoro-onnx
+   ```
+
+2. **Download model files:**
+
+   Kokoro requires two files: the ONNX model and the voices binary.
+
+   ```bash
+   # Download the Kokoro model (v1.0)
+   wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/kokoro-v1.0.onnx
+
+   # Download the voices file
+   wget https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files/voices-v1.0.bin
+   ```
+
+   Place these files in your working directory or specify custom paths in the config.
+
+3. **Verify installation:**
+   ```bash
+   python -c "from kokoro_onnx import Kokoro; print('Kokoro TTS ready!')"
+   ```
+
+**Supported Languages & Voices:**
+
+Kokoro supports 6 languages with 43+ high-quality voices:
+
+- **US English (en-us)**: 19 voices
+  - Female: af_alloy, af_aoede, af_bella, af_heart, af_jessica, af_kore, af_nicole, af_nova, af_river, af_sarah (default), af_sky
+  - Male: am_adam, am_echo, am_eric, am_fenrir, am_liam, am_michael, am_onyx, am_puck
+
+- **British English (en-gb)**: 8 voices
+  - Female: bf_alice, bf_emma (default), bf_isabella, bf_lily
+  - Male: bm_daniel, bm_fable, bm_george, bm_lewis
+
+- **French (fr-fr)**: 1 voice
+  - Female: ff_siwis (default)
+
+- **Italian (it)**: 2 voices
+  - Female: if_sara (default)
+  - Male: im_nicola
+
+- **Japanese (ja)**: 5 voices
+  - Female: jf_alpha (default), jf_gongitsune, jf_nezumi, jf_tebukuro
+  - Male: jm_kumo
+
+- **Mandarin Chinese (cmn)**: 8 voices
+  - Female: zf_xiaobei, zf_xiaoni, zf_xiaoxiao (default), zf_xiaoyi
+  - Male: zm_yunjian, zm_yunxi, zm_yunxia, zm_yunyang
+
+**Note:** Model files are ~150MB total. Unlike Orpheus, they are not language-specific - one model supports all languages.
+
 ### Installing pydub for Audio Stitching (Advanced)
 
 If you want to stitch multiple audio segments together with silence or crossfades, you need to install `pydub` and `ffmpeg`.
@@ -424,6 +487,99 @@ sample_rate, audio = es_tts.synthesize(spanish_text)
 es_tts.save_audio(audio, sample_rate, "spanish_output.wav")
 ```
 
+### Text-to-Speech with Kokoro TTS
+
+```python
+from tts_helper import KokoroTTS, KokoroTTSConfig
+
+# Create TTS with default US English voice (af_sarah)
+config = KokoroTTSConfig(language="en-us", voice="af_sarah")
+tts = KokoroTTS(config)
+
+# Synthesize speech
+text = "Hello world! This is Kokoro text-to-speech."
+sample_rate, audio = tts.synthesize(text)
+
+# Save to file
+tts.save_audio(audio, sample_rate, "kokoro_output.wav")
+```
+
+### Using Different Kokoro Voices and Languages
+
+```python
+from tts_helper import KokoroTTS, KokoroTTSConfig, get_kokoro_voices
+
+# List available voices for a language
+us_voices = get_kokoro_voices("en-us")
+print(f"US English voices: {us_voices}")
+# Output: ['af_alloy', 'af_aoede', ..., 'am_adam', 'am_echo', ...]
+
+# British English with male voice
+uk_config = KokoroTTSConfig(language="en-gb", voice="bm_george")
+uk_tts = KokoroTTS(uk_config)
+
+british_text = "Hello! I'm speaking with a British accent."
+sample_rate, audio = uk_tts.synthesize(british_text)
+uk_tts.save_audio(audio, sample_rate, "british_output.wav")
+
+# Japanese with female voice
+ja_config = KokoroTTSConfig(language="ja", voice="jf_alpha")
+ja_tts = KokoroTTS(ja_config)
+
+japanese_text = "こんにちは！元気ですか？"
+sample_rate, audio = ja_tts.synthesize(japanese_text)
+ja_tts.save_audio(audio, sample_rate, "japanese_output.wav")
+
+# Adjust speech speed (0.5 = slower, 2.0 = faster)
+fast_config = KokoroTTSConfig(language="en-us", voice="af_nova", speed=1.5)
+fast_tts = KokoroTTS(fast_config)
+
+fast_text = "This will be spoken faster than normal."
+sample_rate, audio = fast_tts.synthesize(fast_text)
+fast_tts.save_audio(audio, sample_rate, "fast_output.wav")
+```
+
+### Choosing Between Orpheus and Kokoro TTS
+
+Both TTS engines have different strengths:
+
+**Orpheus TTS:**
+- Larger, more natural-sounding voices
+- Supports English, French, Spanish, Italian
+- Requires GPU for reasonable speed
+- Models are ~2-4GB per language
+- Best for: audiobooks, natural-sounding narration
+
+**Kokoro TTS:**
+- Fast, lightweight ONNX-based engine
+- Supports 6 languages including Japanese and Chinese
+- Works well on CPU
+- Single ~150MB model for all languages
+- Multiple voices per language (43+ total)
+- Best for: multi-language projects, faster processing, resource-constrained environments
+
+```python
+# Example: Using Kokoro for Japanese audiobook
+from tts_helper import (
+    SpacySegmenter, SpacySegmenterConfig,
+    KokoroTTS, KokoroTTSConfig,
+)
+
+# Segment Japanese text
+segmenter = SpacySegmenter(
+    SpacySegmenterConfig(language="ja", max_chars=200)
+)
+japanese_text = "これは日本語のテストです。音声合成が正常に動作しています。"
+chunks = segmenter.segment(japanese_text)
+
+# Synthesize with Kokoro
+tts = KokoroTTS(KokoroTTSConfig(language="ja", voice="jf_alpha"))
+
+for i, chunk in enumerate(chunks, 1):
+    sample_rate, audio = tts.synthesize(chunk)
+    tts.save_audio(audio, sample_rate, f"japanese_chunk_{i}.wav")
+```
+
 ### Audio Stitching with Silence
 
 ```python
@@ -553,6 +709,7 @@ This creates `config.json` with the following structure:
 
 ```json
 {
+  "tts_engine": "orpheus",
   "normalizer": {
     "language": "en",
     "input_case": "cased",
@@ -583,14 +740,19 @@ This creates `config.json` with the following structure:
 
 **Configuration Sections:**
 
+- **tts_engine**: Choose TTS engine: `"orpheus"` or `"kokoro"`
+  - Orpheus: Natural-sounding voices, larger models, GPU recommended
+  - Kokoro: Fast, lightweight, multi-language support, works well on CPU
+
 - **normalizer**: Controls text normalization (numbers, dates, currency → spoken form)
   - See `NemoNormalizerConfig` for available options
 
 - **segmenter**: Controls how text is chunked for TTS
   - See `SpacySegmenterConfig` for available options
 
-- **tts**: Controls speech synthesis settings
-  - See `OrpheusTTSConfig` for available options
+- **tts**: Controls speech synthesis settings (depends on `tts_engine`)
+  - For Orpheus: See `OrpheusTTSConfig` for available options
+  - For Kokoro: See `KokoroTTSConfig` for available options
 
 - **stitcher**: Controls how audio chunks are combined
   - See `PydubStitcherConfig` for available options
@@ -670,7 +832,34 @@ Run:
 python -m tts_helper histoire.txt --config config.json --output histoire.mp3 -v
 ```
 
-**4. Debug with verbose output and keep chunks:**
+**4. Japanese audiobook with Kokoro TTS:**
+Edit `config.json`:
+```json
+{
+  "tts_engine": "kokoro",
+  "segmenter": {
+    "language": "ja",
+    "max_chars": 200
+  },
+  "tts": {
+    "language": "ja",
+    "voice": "jf_alpha",
+    "speed": 1.0
+  },
+  "stitcher": {
+    "output_format": "mp3",
+    "silence_duration_ms": 500
+  },
+  "skip_normalization": true
+}
+```
+
+Run:
+```bash
+python -m tts_helper japanese_story.txt --config config.json --output japanese_audiobook.mp3 -v
+```
+
+**5. Debug with verbose output and keep chunks:**
 ```bash
 python -m tts_helper input.txt --output output.mp3 --verbose --keep-chunks
 ```
@@ -719,6 +908,30 @@ This will:
 - **French**: marie (default), pierre, amelie
 - **Spanish**: maria (default), javi, sergio
 - **Italian**: giulia (default), pietro, carlo
+
+### KokoroTTSConfig
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `language` | `str` | `"en-us"` | Language code (en-us, en-gb, fr-fr, it, ja, cmn) |
+| `voice` | `str` | Language-specific | Voice to use (auto-selected based on language if not specified) |
+| `speed` | `float` | `1.0` | Speech speed multiplier (range: 0.5-2.0) |
+| `model_path` | `Optional[str]` | `None` | Path to kokoro-v1.0.onnx file (auto-detected if None) |
+| `voices_path` | `Optional[str]` | `None` | Path to voices-v1.0.bin file (auto-detected if None) |
+| `verbose` | `bool` | `False` | Whether to print verbose TTS info |
+
+**Available Voices by Language:**
+
+- **US English (en-us)**: af_sarah (default), af_alloy, af_aoede, af_bella, af_heart, af_jessica, af_kore, af_nicole, af_nova, af_river, af_sky, am_adam, am_echo, am_eric, am_fenrir, am_liam, am_michael, am_onyx, am_puck
+- **British English (en-gb)**: bf_emma (default), bf_alice, bf_isabella, bf_lily, bm_daniel, bm_fable, bm_george, bm_lewis
+- **French (fr-fr)**: ff_siwis (default)
+- **Italian (it)**: if_sara (default), im_nicola
+- **Japanese (ja)**: jf_alpha (default), jf_gongitsune, jf_nezumi, jf_tebukuro, jm_kumo
+- **Mandarin Chinese (cmn)**: zf_xiaoxiao (default), zf_xiaobei, zf_xiaoni, zf_xiaoyi, zm_yunjian, zm_yunxi, zm_yunxia, zm_yunyang
+
+**Language Aliases:**
+- `"fr"` → `"fr-fr"`
+- `"zh"` → `"cmn"`
 
 ### PydubStitcherConfig
 

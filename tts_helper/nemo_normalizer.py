@@ -127,11 +127,11 @@ class NemoNormalizer(Normalizer):
         """
         if not text or not text.strip():
             return text
-
         try:
-            normalized = self.normalizer.normalize(
-                text, verbose=self.config.verbose, punct_post_process=True
-            )
+            sentences = self.normalizer.split_text_into_sentences(text)
+            normalized = "\n".join(self.normalizer.normalize_list(
+                sentences, verbose=self.config.verbose, punct_post_process=True
+            ))
             return normalized
         except Exception as e:
             # If normalization fails, return original text with a warning
