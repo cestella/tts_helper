@@ -208,4 +208,5 @@ __marimo__/
 
 *.onnx
 *.bin
-
+config*.json
+config.json

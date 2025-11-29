@@ -33,9 +33,8 @@ class TestTranslationEnhancerIntegration:
         """
         config = TranslationEnhancerConfig(
             probability=1.0,  # Always translate for testing
-            target_language="Italian",
-            target_lang_code="ita_Latn",
-            source_lang_code="eng_Latn",
+            source_language="english",
+            target_language="italian",
             model_id="facebook/nllb-200-distilled-600M",
             max_length=400,
             device="cpu",
@@ -81,9 +80,8 @@ class TestTranslationEnhancerIntegration:
         """Test real translation from English to Spanish using NLLB."""
         config = TranslationEnhancerConfig(
             probability=1.0,
-            target_language="Spanish",
-            target_lang_code="spa_Latn",
-            source_lang_code="eng_Latn",
+            source_language="english",
+            target_language="spanish",
             model_id="facebook/nllb-200-distilled-600M",
             device="cpu",
             verbose=True,
@@ -113,9 +111,8 @@ class TestTranslationEnhancerIntegration:
         """Test that voice override is set correctly on translated chunks."""
         config = TranslationEnhancerConfig(
             probability=1.0,
-            target_language="French",
-            target_lang_code="fra_Latn",
-            source_lang_code="eng_Latn",
+            source_language="english",
+            target_language="french",
             translation_voice="if_sara",  # Italian voice
             translation_language="it",
             model_id="facebook/nllb-200-distilled-600M",
@@ -147,9 +144,8 @@ class TestTranslationEnhancerIntegration:
         """Test that probability affects which chunks get translated."""
         config = TranslationEnhancerConfig(
             probability=0.0,  # Never translate
-            target_language="Italian",
-            target_lang_code="ita_Latn",
-            source_lang_code="eng_Latn",
+            source_language="english",
+            target_language="italian",
             model_id="facebook/nllb-200-distilled-600M",
             device="cpu",
         )

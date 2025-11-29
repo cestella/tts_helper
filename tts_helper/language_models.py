@@ -1,13 +1,15 @@
 """
 Language to spaCy model mapping and metadata.
 
-This module provides a centralized mapping from language codes to spaCy models
+This module provides a centralized mapping from unified language names to spaCy models
 and associated metadata. This mapping can be used throughout the pipeline
 for consistent language handling.
 """
 
 from dataclasses import dataclass
 from typing import Dict, Optional
+
+from .language import get_iso_code
 
 
 @dataclass
@@ -98,22 +100,26 @@ LANGUAGE_MODEL_MAP: Dict[str, LanguageModelMetadata] = {
 }
 
 
-def get_model_for_language(language_code: str) -> Optional[LanguageModelMetadata]:
+def get_model_for_language(language: str) -> Optional[LanguageModelMetadata]:
     """
-    Get the spaCy model metadata for a given language code.
+    Get the spaCy model metadata for a given language.
 
     Args:
-        language_code: ISO 639-1 language code (e.g., 'en', 'de').
+        language: Unified language name (e.g., 'english', 'german').
 
     Returns:
         LanguageModelMetadata if the language is supported, None otherwise.
     """
-    return LANGUAGE_MODEL_MAP.get(language_code.lower())
+    try:
+        iso_code = get_iso_code(language)
+        return LANGUAGE_MODEL_MAP.get(iso_code)
+    except ValueError:
+        return None
 
 
 def get_supported_languages() -> list[str]:
     """
-    Get a list of supported language codes.
+    Get a list of supported language codes (ISO 639-1).
 
     Returns:
         List of ISO 639-1 language codes.
@@ -121,14 +127,14 @@ def get_supported_languages() -> list[str]:
     return list(LANGUAGE_MODEL_MAP.keys())
 
 
-def is_language_supported(language_code: str) -> bool:
+def is_language_supported(language: str) -> bool:
     """
-    Check if a language is supported.
+    Check if a language is supported for spaCy segmentation.
 
     Args:
-        language_code: ISO 639-1 language code (e.g., 'en', 'de').
+        language: Unified language name (e.g., 'english', 'german').
 
     Returns:
         True if the language is supported, False otherwise.
     """
-    return language_code.lower() in LANGUAGE_MODEL_MAP
+    return get_model_for_language(language) is not None

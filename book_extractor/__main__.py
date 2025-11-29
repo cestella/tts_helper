@@ -105,7 +105,7 @@ Output files will be named with lexicographic ordering:
     except ImportError as e:
         print(f"Error: {e}", file=sys.stderr)
         print("\nTo install required dependencies:", file=sys.stderr)
-        print("  For EPUB: pip install ebooklib beautifulsoup4", file=sys.stderr)
+        print("  For EPUB: pip install ebooklib trafilatura", file=sys.stderr)
         print("  For PDF: pip install pymupdf", file=sys.stderr)
         print("  For better PDF extraction: pip install pymupdf4llm", file=sys.stderr)
         return 1

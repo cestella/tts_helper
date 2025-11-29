@@ -11,6 +11,7 @@ Extract chapters from EPUB and PDF books with lexicographic naming for easy orde
   - EPUB: Uses document structure and heading tags
   - PDF: Uses TOC, markdown conversion, or page-by-page extraction
 - **Duplicate Handling**: Automatically handles duplicate chapter titles
+- **Clean Text Output**: Uses `trafilatura` plus lightweight spaCy sentence normalization for TTS-ready text
 
 ## Installation
 
@@ -18,7 +19,7 @@ Install the optional dependencies for book extraction:
 
 ```bash
 # For EPUB support
-pip install ebooklib beautifulsoup4
+pip install ebooklib trafilatura
 
 # For PDF support
 pip install pymupdf
@@ -123,6 +124,7 @@ python -m tts_helper chapters/0001_*.txt --config config.json --output chapter1.
 
 ## Dependencies
 
-- **EPUB**: `ebooklib`, `beautifulsoup4`
+- **EPUB**: `ebooklib`, `trafilatura`
 - **PDF**: `pymupdf` (provides `fitz` module)
 - **PDF (enhanced)**: `pymupdf4llm` (optional, for better text extraction)
+- **Sentence normalization (optional)**: `spacy` (used if installed; falls back to whitespace cleanup)

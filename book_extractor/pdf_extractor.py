@@ -14,6 +14,7 @@ try:
 except ImportError:
     pymupdf4llm = None
 
+from .text_normalizer import normalize_text_for_tts
 
 def safe_filename(name: str, default: str = "chapter") -> str:
     """Convert a string to a safe filename.
@@ -156,6 +157,7 @@ def _extract_with_toc(
                 text_parts.append(page.get_text())
 
             text = "\n".join(text_parts).strip()
+            text = normalize_text_for_tts(text)
 
             if not text or len(text) < 50:
                 if verbose:
@@ -255,6 +257,8 @@ def _extract_with_pymupdf4llm(
                 # If no text after header, include full chapter
                 text = chapter
 
+            text = normalize_text_for_tts(text)
+
             if len(text.strip()) < 50:
                 if verbose:
                     print(f"  Skipping chapter (too short): {title}")
@@ -310,6 +314,7 @@ def _extract_page_by_page(
         try:
             page = doc[page_num]
             text = page.get_text()
+            text = normalize_text_for_tts(text)
 
             if not text or len(text.strip()) < 50:
                 if verbose:

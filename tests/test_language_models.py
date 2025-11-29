@@ -30,7 +30,7 @@ class TestLanguageModelMap:
 
     def test_get_model_for_supported_language(self):
         """Test retrieving model for supported language."""
-        model = get_model_for_language("en")
+        model = get_model_for_language("english")
         assert model is not None
         assert model.model_name == "en_core_web_sm"
         assert model.language_code == "en"
@@ -41,9 +41,9 @@ class TestLanguageModelMap:
         assert model is None
 
     def test_get_model_case_insensitive(self):
-        """Test that language codes are case-insensitive."""
-        model_lower = get_model_for_language("en")
-        model_upper = get_model_for_language("EN")
+        """Test that language names are case-insensitive."""
+        model_lower = get_model_for_language("english")
+        model_upper = get_model_for_language("ENGLISH")
         assert model_lower is not None
         assert model_upper is not None
         assert model_lower.model_name == model_upper.model_name
@@ -59,9 +59,9 @@ class TestLanguageModelMap:
 
     def test_is_language_supported_true(self):
         """Test checking if language is supported (positive case)."""
-        assert is_language_supported("en") is True
-        assert is_language_supported("de") is True
-        assert is_language_supported("EN") is True  # Case insensitive
+        assert is_language_supported("english") is True
+        assert is_language_supported("german") is True
+        assert is_language_supported("ENGLISH") is True  # Case insensitive
 
     def test_is_language_supported_false(self):
         """Test checking if language is supported (negative case)."""

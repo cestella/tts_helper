@@ -8,18 +8,7 @@ from typing import Dict, List, Literal, Optional, Tuple, Union
 import numpy as np
 
 from .tts import TTS, TTSConfig
-
-# Language mappings for Kokoro
-LANGUAGE_MAP: Dict[str, str] = {
-    "en-us": "en-us",
-    "en-gb": "en-gb",
-    "fr-fr": "fr-fr",
-    "fr": "fr-fr",
-    "it": "it",
-    "ja": "ja",
-    "cmn": "cmn",
-    "zh": "cmn",  # Alias for Mandarin Chinese
-}
+from .language import get_kokoro_code
 
 # Voice mappings by language
 SUPPORTED_VOICES: Dict[str, List[str]] = {
@@ -63,7 +52,7 @@ def get_supported_voices(language: str) -> List[str]:
     """Get supported voices for a language.
 
     Args:
-        language: Language code (e.g., 'en-us', 'fr-fr')
+        language: Unified language name (e.g., 'english', 'french', 'italian')
 
     Returns:
         List of voice names
@@ -71,19 +60,21 @@ def get_supported_voices(language: str) -> List[str]:
     Raises:
         ValueError: If language is not supported
     """
-    lang = LANGUAGE_MAP.get(language, language)
-    if lang not in SUPPORTED_VOICES:
-        supported = ", ".join(sorted(LANGUAGE_MAP.keys()))
-        raise ValueError(f"Language '{language}' not supported. Supported: {supported}")
+    lang_code = get_kokoro_code(language)
+    if lang_code not in SUPPORTED_VOICES:
+        raise ValueError(
+            f"Language '{language}' (Kokoro code: '{lang_code}') not supported. "
+            f"Kokoro supports: english, french, italian, japanese, chinese"
+        )
 
-    return SUPPORTED_VOICES[lang]
+    return SUPPORTED_VOICES[lang_code]
 
 
 def get_default_voice(language: str) -> str:
     """Get default voice for a language.
 
     Args:
-        language: Language code (e.g., 'en-us', 'fr-fr')
+        language: Unified language name (e.g., 'english', 'french', 'italian')
 
     Returns:
         Default voice name
@@ -91,12 +82,14 @@ def get_default_voice(language: str) -> str:
     Raises:
         ValueError: If language is not supported
     """
-    lang = LANGUAGE_MAP.get(language, language)
-    if lang not in DEFAULT_VOICES:
-        supported = ", ".join(sorted(LANGUAGE_MAP.keys()))
-        raise ValueError(f"Language '{language}' not supported. Supported: {supported}")
+    lang_code = get_kokoro_code(language)
+    if lang_code not in DEFAULT_VOICES:
+        raise ValueError(
+            f"Language '{language}' (Kokoro code: '{lang_code}') not supported. "
+            f"Kokoro supports: english, french, italian, japanese, chinese"
+        )
 
-    return DEFAULT_VOICES[lang]
+    return DEFAULT_VOICES[lang_code]
 
 
 def download_model_file(url: str, destination: Path, verbose: bool = False) -> None:
@@ -141,7 +134,7 @@ class KokoroTTSConfig(TTSConfig):
     """Configuration for Kokoro TTS.
 
     Args:
-        language: Language code (default: "en-us")
+        language: Unified language name (default: "english")
         voice: Voice to use (default: auto-selected from language)
         speed: Speech speed multiplier (default: 1.0, range: 0.5-2.0)
         model_path: Path to kokoro ONNX model file (default: None, auto-download)
@@ -149,7 +142,7 @@ class KokoroTTSConfig(TTSConfig):
         verbose: Whether to print verbose TTS info (default: False)
     """
 
-    language: str = "en-us"
+    language: str = "english"
     voice: Optional[str] = None
     speed: float = 1.0
     model_path: Optional[str] = None
@@ -158,23 +151,23 @@ class KokoroTTSConfig(TTSConfig):
 
     def __post_init__(self):
         """Validate configuration after initialization."""
-        # Normalize language
-        self.language = LANGUAGE_MAP.get(self.language, self.language)
+        # Get Kokoro language code
+        lang_code = get_kokoro_code(self.language)
 
         # Validate language
-        if self.language not in SUPPORTED_VOICES:
-            supported = ", ".join(sorted(LANGUAGE_MAP.keys()))
+        if lang_code not in SUPPORTED_VOICES:
             raise ValueError(
-                f"Language '{self.language}' not supported. Supported: {supported}"
+                f"Language '{self.language}' (Kokoro code: '{lang_code}') not supported. "
+                f"Kokoro supports: english, french, italian, japanese, chinese"
             )
 
         # Auto-select voice if not specified
         if self.voice is None:
-            self.voice = DEFAULT_VOICES[self.language]
+            self.voice = DEFAULT_VOICES[lang_code]
 
         # Validate voice
-        if self.voice not in SUPPORTED_VOICES[self.language]:
-            supported = ", ".join(SUPPORTED_VOICES[self.language])
+        if self.voice not in SUPPORTED_VOICES[lang_code]:
+            supported = ", ".join(SUPPORTED_VOICES[lang_code])
             raise ValueError(
                 f"Voice '{self.voice}' not supported for language '{self.language}'. "
                 f"Supported voices: {supported}"
@@ -183,6 +176,11 @@ class KokoroTTSConfig(TTSConfig):
         # Validate speed
         if not (0.5 <= self.speed <= 2.0):
             raise ValueError(f"Speed must be between 0.5 and 2.0, got: {self.speed}")
+
+    @property
+    def kokoro_language_code(self) -> str:
+        """Get Kokoro language code."""
+        return get_kokoro_code(self.language)
 
 
 class KokoroTTS(TTS):
@@ -276,13 +274,91 @@ class KokoroTTS(TTS):
             # Return silence for empty text
             return 24000, np.array([], dtype=np.float32)
 
+        # Safety check: Kokoro has issues with very long text (>510 phonemes)
+        # If text is too long, split it and concatenate the results
+        MAX_SAFE_CHARS = 150  # Conservative limit to avoid phoneme overflow
+        if len(text) > MAX_SAFE_CHARS:
+            import warnings
+            import sys
+            msg = (
+                f"Text is {len(text)} chars (>{MAX_SAFE_CHARS}). "
+                f"Splitting into smaller parts..."
+            )
+            print(f"\n⚠️  {msg}", file=sys.stderr)
+            warnings.warn(msg)
+            # Split on sentence boundaries if possible
+            sentences = text.split('. ')
+            audio_parts = []
+            current_text = ""
+
+            for i, sent in enumerate(sentences):
+                # Add period back except for last sentence
+                sent = sent + '.' if i < len(sentences) - 1 else sent
+
+                if len(current_text) + len(sent) <= MAX_SAFE_CHARS:
+                    current_text += (' ' if current_text else '') + sent
+                else:
+                    # Process accumulated text
+                    if current_text:
+                        print(f"  📢 Synthesizing part {len(audio_parts)+1}/{len(sentences)} ({len(current_text)} chars)...", file=sys.stderr)
+                        _, audio = self.synthesize(current_text)
+                        audio_parts.append(audio)
+                    current_text = sent
+
+            # Process remaining text
+            if current_text:
+                print(f"  📢 Synthesizing final part ({len(current_text)} chars)...", file=sys.stderr)
+                _, audio = self.synthesize(current_text)
+                audio_parts.append(audio)
+
+            print(f"✅ Combined {len(audio_parts)} parts into single audio", file=sys.stderr)
+
+            # Concatenate all audio parts
+            if audio_parts:
+                combined_audio = np.concatenate(audio_parts)
+                return 24000, combined_audio
+            else:
+                return 24000, np.array([], dtype=np.float32)
+
         # Synthesize using Kokoro
-        samples, sample_rate = self.engine.create(
-            text,
-            voice=self.config.voice,
-            speed=self.config.speed,
-            lang=self.config.language,
-        )
+        try:
+            samples, sample_rate = self.engine.create(
+                text,
+                voice=self.config.voice,
+                speed=self.config.speed,
+                lang=self.config.kokoro_language_code,
+            )
+        except Exception as e:
+            # Provide detailed error information
+            import sys
+            import traceback
+
+            error_msg = (
+                f"\n{'='*80}\n"
+                f"ERROR: Kokoro TTS synthesis failed\n"
+                f"{'='*80}\n"
+                f"Text length: {len(text)} characters\n"
+                f"Voice: {self.config.voice}\n"
+                f"Language: {self.config.kokoro_language_code}\n"
+                f"Speed: {self.config.speed}\n"
+                f"\nProblematic text:\n"
+                f"{'-'*80}\n"
+                f"{text}\n"
+                f"{'-'*80}\n"
+                f"\nError type: {type(e).__name__}\n"
+                f"Error message: {str(e)}\n"
+                f"\nFull traceback:\n"
+            )
+            print(error_msg, file=sys.stderr)
+            traceback.print_exc()
+            print(f"{'='*80}\n", file=sys.stderr)
+
+            # Re-raise with additional context
+            raise RuntimeError(
+                f"Kokoro TTS failed on {len(text)}-char text. "
+                f"Text preview: {text[:100]}... "
+                f"Original error: {str(e)}"
+            ) from e
 
         # Convert to numpy array if needed
         if not isinstance(samples, np.ndarray):

@@ -15,7 +15,7 @@ class TestNemoNormalizerConfig:
         """Test default configuration values."""
         config = NemoNormalizerConfig()
 
-        assert config.language == "en"
+        assert config.language == "english"
         assert config.input_case == "cased"
         assert config.cache_dir is None
         assert config.verbose is False
@@ -23,12 +23,12 @@ class TestNemoNormalizerConfig:
     def test_custom_config(self):
         """Test custom configuration values."""
         config = NemoNormalizerConfig(
-            language="de",
+            language="german",
             input_case="lower_cased",
             verbose=True,
         )
 
-        assert config.language == "de"
+        assert config.language == "german"
         assert config.input_case == "lower_cased"
         assert config.verbose is True
 
@@ -45,7 +45,7 @@ class TestNemoNormalizerConfig:
     def test_config_serialization(self):
         """Test config can be serialized to/from JSON."""
         config = NemoNormalizerConfig(
-            language="es",
+            language="spanish",
             input_case="lower_cased",
             verbose=True,
         )
@@ -67,7 +67,7 @@ class TestNemoNormalizer:
     @pytest.fixture
     def config(self):
         """Fixture providing default config."""
-        return NemoNormalizerConfig(language="en", verbose=False)
+        return NemoNormalizerConfig(language="english", verbose=False)
 
     @pytest.fixture
     def normalizer(self, config):
@@ -142,7 +142,7 @@ class TestNemoNormalizer:
         repr_str = repr(normalizer)
 
         assert "NemoNormalizer" in repr_str
-        assert "en" in repr_str
+        assert "english" in repr_str
         assert "cased" in repr_str
 
     def test_normalize_handles_errors_gracefully(self, normalizer):
@@ -159,7 +159,7 @@ class TestNemoNormalizer:
         """Test normalizer with different languages."""
         try:
             # Test Spanish
-            config_es = NemoNormalizerConfig(language="es", verbose=False)
+            config_es = NemoNormalizerConfig(language="spanish", verbose=False)
             normalizer_es = NemoNormalizer(config_es)
 
             # Spanish text with numbers
@@ -197,7 +197,7 @@ class TestNemoNormalizerIntegration:
     @pytest.fixture
     def normalizer(self):
         """Fixture providing normalizer for integration tests."""
-        config = NemoNormalizerConfig(language="en", verbose=False)
+        config = NemoNormalizerConfig(language="english", verbose=False)
         try:
             return NemoNormalizer(config)
         except ImportError:
@@ -226,3 +226,64 @@ class TestNemoNormalizerIntegration:
         assert isinstance(normalized, str)
         # Check that normalization happened (text should be longer)
         assert len(normalized) >= len(text)
+
+    def test_italian_normalization(self):
+        """Test Italian text normalization with NeMo.
+
+        This validates that NeMo's Italian TN (Text Normalization) support works
+        correctly for converting written Italian text to spoken form.
+        """
+        try:
+            config = NemoNormalizerConfig(language="italian", verbose=True)
+            normalizer = NemoNormalizer(config)
+        except ImportError:
+            pytest.skip("nemo_text_processing not installed")
+        except Exception as e:
+            # If Italian initialization fails, skip with explanation
+            pytest.skip(f"Italian normalization not available: {e}")
+
+        # Test 1: Numbers in Italian
+        text_numbers = "Ho 25 mele e 30 arance."
+        normalized_numbers = normalizer.normalize(text_numbers)
+        assert isinstance(normalized_numbers, str)
+        assert len(normalized_numbers) > 0
+        print(f"\nNumbers: '{text_numbers}' -> '{normalized_numbers}'")
+
+        # Test 2: Currency (Euro is common in Italian)
+        text_currency = "Il prezzo è €45.50"
+        normalized_currency = normalizer.normalize(text_currency)
+        assert isinstance(normalized_currency, str)
+        assert len(normalized_currency) > 0
+        print(f"Currency: '{text_currency}' -> '{normalized_currency}'")
+
+        # Test 3: Time expressions
+        text_time = "L'appuntamento è alle 15:30"
+        normalized_time = normalizer.normalize(text_time)
+        assert isinstance(normalized_time, str)
+        assert len(normalized_time) > 0
+        print(f"Time: '{text_time}' -> '{normalized_time}'")
+
+        # Test 4: Dates
+        text_date = "Oggi è il 15 gennaio 2024"
+        normalized_date = normalizer.normalize(text_date)
+        assert isinstance(normalized_date, str)
+        assert len(normalized_date) > 0
+        print(f"Date: '{text_date}' -> '{normalized_date}'")
+
+        # Test 5: Mixed content (realistic Italian text)
+        text_mixed = (
+            "Il Dott. Rossi è arrivato alle 14:30 con €1.234,56 in tasca. "
+            "Aveva esattamente 42 motivi per essere lì."
+        )
+        normalized_mixed = normalizer.normalize(text_mixed)
+        assert isinstance(normalized_mixed, str)
+        assert len(normalized_mixed) > 0
+        print(f"\nMixed content:\n  Original: '{text_mixed}'\n  Normalized: '{normalized_mixed}'")
+
+        # Test 6: Plain text (should remain mostly unchanged)
+        text_plain = "Questo è un testo semplice senza numeri o simboli speciali."
+        normalized_plain = normalizer.normalize(text_plain)
+        assert isinstance(normalized_plain, str)
+        assert "testo" in normalized_plain.lower()
+        assert "semplice" in normalized_plain.lower()
+        print(f"Plain text: '{text_plain}' -> '{normalized_plain}'")

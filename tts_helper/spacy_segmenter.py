@@ -11,6 +11,7 @@ from typing import List, Literal, Optional
 import spacy
 from spacy.language import Language
 
+from .language import get_iso_code
 from .language_models import get_model_for_language, is_language_supported
 from .segmenter import Segmenter, SegmenterConfig
 
@@ -21,7 +22,7 @@ class SpacySegmenterConfig(SegmenterConfig):
     Configuration for spaCy-based text segmentation.
 
     Attributes:
-        language: ISO 639-1 language code (e.g., 'en', 'de', 'fr').
+        language: Unified language name (e.g., 'english', 'german', 'french').
         strategy: Chunking strategy. Options:
                  - 'sentence_count': Group by number of sentences
                  - 'char_count': Group by character count (preserving sentence boundaries)
@@ -35,7 +36,7 @@ class SpacySegmenterConfig(SegmenterConfig):
                       Default: ['ner', 'lemmatizer'].
     """
 
-    language: str = "en"
+    language: str = "english"
     strategy: Literal["sentence_count", "char_count"] = "char_count"
     sentences_per_chunk: int = 3
     max_chars: int = 300
@@ -45,10 +46,21 @@ class SpacySegmenterConfig(SegmenterConfig):
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         if not is_language_supported(self.language):
-            raise ValueError(
-                f"Language '{self.language}' is not supported. "
-                f"Please provide a valid language code or specify model_name explicitly."
-            )
+            try:
+                # Try to get ISO code to show in error message
+                iso_code = get_iso_code(self.language)
+                error_msg = (
+                    f"Language '{self.language}' (ISO code: '{iso_code}') is not supported for spaCy segmentation. "
+                    f"Supported languages: english, german, french, spanish, italian, portuguese, dutch, chinese, japanese. "
+                    f"You can also specify model_name explicitly."
+                )
+            except ValueError:
+                error_msg = (
+                    f"Language '{self.language}' is not recognized. "
+                    f"Supported languages: english, german, french, spanish, italian, portuguese, dutch, chinese, japanese. "
+                    f"You can also specify model_name explicitly."
+                )
+            raise ValueError(error_msg)
 
         if self.strategy not in ["sentence_count", "char_count"]:
             raise ValueError(
@@ -203,6 +215,39 @@ class SpacySegmenter(Segmenter):
             if current_chunk and len(current_chunk) + 1 + len(sentence_text) > self.config.max_chars:
                 chunks.append(current_chunk)
                 current_chunk = sentence_text
+
+                # Check if this single sentence is also too long
+                if len(sentence_text) > self.config.max_chars:
+                    # Split oversized sentence on commas or spaces
+                    import warnings
+                    warnings.warn(
+                        f"Sentence is {len(sentence_text)} chars (max: {self.config.max_chars}). "
+                        f"Splitting on punctuation. Preview: {sentence_text[:100]}..."
+                    )
+                    # Try splitting on commas first, then spaces
+                    if ',' in sentence_text:
+                        parts = sentence_text.split(',')
+                        delimiter = ','
+                    else:
+                        parts = sentence_text.split(' ')
+                        delimiter = ' '
+
+                    current_chunk = ""
+                    for part in parts:
+                        part = part.strip()
+                        if not part:
+                            continue
+
+                        # Add delimiter back (except for last part)
+                        if delimiter == ',' and part != parts[-1].strip():
+                            part += ','
+
+                        if len(current_chunk) + len(part) + 1 > self.config.max_chars:
+                            if current_chunk:
+                                chunks.append(current_chunk)
+                            current_chunk = part
+                        else:
+                            current_chunk += (' ' if current_chunk else '') + part
             else:
                 # Add sentence to current chunk
                 if current_chunk:

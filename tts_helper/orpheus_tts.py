@@ -12,16 +12,8 @@ from typing import Dict, List, Literal, Optional, Tuple
 import numpy as np
 from scipy.io.wavfile import write
 
+from .language import get_orpheus_code
 from .tts import TTS, TTSConfig
-
-
-# Language to model code mapping
-LANGUAGE_MODELS: Dict[str, str] = {
-    "english": "en",
-    "french": "fr",
-    "spanish": "es",
-    "italian": "it",
-}
 
 # Model paths for each language
 MODEL_PATHS: Dict[str, Optional[str]] = {
@@ -71,14 +63,14 @@ class OrpheusTTSConfig(TTSConfig):
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
-        if self.language not in LANGUAGE_MODELS:
+        try:
+            # Get Orpheus language code (validates the language)
+            lang_code = get_orpheus_code(self.language)
+        except ValueError:
             raise ValueError(
-                f"Language '{self.language}' not supported. "
-                f"Supported languages: {list(LANGUAGE_MODELS.keys())}"
+                f"Language '{self.language}' not supported by Orpheus. "
+                f"Orpheus supports: english, french, spanish, italian"
             )
-
-        # Get language code
-        lang_code = LANGUAGE_MODELS[self.language]
 
         # Validate or set voice
         if self.voice is None:
@@ -156,7 +148,7 @@ class OrpheusTTS(TTS):
                 ) from e
 
             try:
-                lang_code = LANGUAGE_MODELS[self.config.language]
+                lang_code = get_orpheus_code(self.config.language)
 
                 kwargs = {
                     "verbose": self.config.verbose,
@@ -259,7 +251,7 @@ def get_supported_voices(language: str) -> List[str]:
     Get list of supported voices for a language.
 
     Args:
-        language: Language name ('english', 'french', 'spanish', 'italian').
+        language: Unified language name (e.g., 'english', 'french', 'spanish', 'italian').
 
     Returns:
         List of voice IDs supported for the language.
@@ -267,13 +259,14 @@ def get_supported_voices(language: str) -> List[str]:
     Raises:
         ValueError: If language is not supported.
     """
-    if language not in LANGUAGE_MODELS:
+    try:
+        lang_code = get_orpheus_code(language)
+    except ValueError:
         raise ValueError(
-            f"Language '{language}' not supported. "
-            f"Supported languages: {list(LANGUAGE_MODELS.keys())}"
+            f"Language '{language}' not supported by Orpheus. "
+            f"Orpheus supports: english, french, spanish, italian"
         )
 
-    lang_code = LANGUAGE_MODELS[language]
     return SUPPORTED_VOICES[lang_code]
 
 
@@ -282,7 +275,7 @@ def get_default_voice(language: str) -> str:
     Get the default voice for a language.
 
     Args:
-        language: Language name ('english', 'french', 'spanish', 'italian').
+        language: Unified language name (e.g., 'english', 'french', 'spanish', 'italian').
 
     Returns:
         Default voice ID for the language.
@@ -290,11 +283,12 @@ def get_default_voice(language: str) -> str:
     Raises:
         ValueError: If language is not supported.
     """
-    if language not in LANGUAGE_MODELS:
+    try:
+        lang_code = get_orpheus_code(language)
+    except ValueError:
         raise ValueError(
-            f"Language '{language}' not supported. "
-            f"Supported languages: {list(LANGUAGE_MODELS.keys())}"
+            f"Language '{language}' not supported by Orpheus. "
+            f"Orpheus supports: english, french, spanish, italian"
         )
 
-    lang_code = LANGUAGE_MODELS[language]
     return DEFAULT_VOICES[lang_code]

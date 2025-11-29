@@ -7,11 +7,13 @@ from typing import List, Optional
 try:
     import ebooklib
     from ebooklib import epub
-    from bs4 import BeautifulSoup
+    import trafilatura
 except ImportError:
     ebooklib = None
     epub = None
-    BeautifulSoup = None
+    trafilatura = None
+
+from .text_normalizer import normalize_text_for_tts
 
 
 def safe_filename(name: str, default: str = "chapter") -> str:
@@ -31,32 +33,62 @@ def safe_filename(name: str, default: str = "chapter") -> str:
     return slug or default
 
 
+def _normalize_language_code(language_hint: Optional[str]) -> str:
+    """Deprecated: moved to text_normalizer.normalize_text_for_tts."""
+    # Kept for backward compatibility if other modules import it directly
+    if not language_hint:
+        return "en"
+    parts = language_hint.split("-")
+    return parts[0].strip().lower() or "en"
+
+
+def _extract_heading_title(html_content: str) -> Optional[str]:
+    """Fallback heading extraction when metadata has no title."""
+    match = re.search(
+        r"<h([1-3])[^>]*>(.*?)</h\1>",
+        html_content,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    if not match:
+        return None
+
+    heading_text = re.sub(r"\s+", " ", match.group(2)).strip()
+    return heading_text or None
+
+
+def _normalize_text_for_tts(text: str, language_hint: Optional[str] = None) -> str:
+    """Deprecated shim to maintain compatibility."""
+    return normalize_text_for_tts(text, language_hint=language_hint)
+
+
 def extract_text_from_html(html_content: str) -> tuple[Optional[str], str]:
-    """Extract title and text from HTML content.
+    """Extract title and text from HTML content using trafilatura."""
+    if trafilatura is None:
+        raise ImportError(
+            "trafilatura is required for EPUB extraction. Install with: pip install trafilatura"
+        )
 
-    Args:
-        html_content: HTML content as string
+    # Extract cleaned text and metadata
+    meta = trafilatura.extract_metadata(html_content)
+    text = trafilatura.extract(
+        html_content,
+        include_links=False,
+        fast=True,
+        favor_recall=True,
+        output_format="txt",
+    )
 
-    Returns:
-        Tuple of (title, text) where title may be None
-    """
-    if BeautifulSoup is None:
-        raise ImportError("BeautifulSoup4 is required. Install with: pip install beautifulsoup4")
+    if not text:
+        return (None, "")
 
-    soup = BeautifulSoup(html_content, "html.parser")
+    title = meta.title if meta else None
+    language = meta.language if meta else None
+    if not title:
+        title = _extract_heading_title(html_content)
 
-    # Try to find a title from h1, h2, or h3 tags
-    title = None
-    for tag in ["h1", "h2", "h3"]:
-        header = soup.find(tag)
-        if header:
-            title = header.get_text().strip()
-            break
+    normalized_text = _normalize_text_for_tts(text, language_hint=language)
 
-    # Extract all text
-    text = soup.get_text(separator="\n", strip=True)
-
-    return title, text
+    return title, normalized_text
 
 
 def extract_epub_chapters(
@@ -88,7 +120,12 @@ def extract_epub_chapters(
     if ebooklib is None or epub is None:
         raise ImportError(
             "ebooklib is required for EPUB extraction. "
-            "Install with: pip install ebooklib beautifulsoup4"
+            "Install with: pip install ebooklib trafilatura"
+        )
+    if trafilatura is None:
+        raise ImportError(
+            "trafilatura is required for EPUB extraction. "
+            "Install with: pip install trafilatura"
         )
 
     if not epub_path.exists():

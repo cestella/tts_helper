@@ -21,9 +21,10 @@ class TestTranslationEnhancerConfig:
         config = TranslationEnhancerConfig()
 
         assert config.probability == 0.1
-        assert config.target_language == "Italian"
-        assert config.target_lang_code == "ita_Latn"
-        assert config.source_lang_code == "eng_Latn"
+        assert config.source_language == "english"
+        assert config.target_language == "italian"
+        assert config.target_lang_code == "ita_Latn"  # Property
+        assert config.source_lang_code == "eng_Latn"  # Property
         assert "{language}" in config.announcement_template
         assert config.model_id == "facebook/nllb-200-distilled-600M"
         assert config.max_length == 400
@@ -34,9 +35,8 @@ class TestTranslationEnhancerConfig:
         """Test custom configuration values."""
         config = TranslationEnhancerConfig(
             probability=0.3,
-            target_language="Spanish",
-            target_lang_code="spa_Latn",
-            source_lang_code="eng_Latn",
+            source_language="english",
+            target_language="spanish",
             announcement_template="Translated to {language}:",
             model_id="facebook/nllb-200-1.3B",
             max_length=512,
@@ -45,9 +45,10 @@ class TestTranslationEnhancerConfig:
         )
 
         assert config.probability == 0.3
-        assert config.target_language == "Spanish"
-        assert config.target_lang_code == "spa_Latn"
-        assert config.source_lang_code == "eng_Latn"
+        assert config.source_language == "english"
+        assert config.target_language == "spanish"
+        assert config.target_lang_code == "spa_Latn"  # Property
+        assert config.source_lang_code == "eng_Latn"  # Property
         assert config.announcement_template == "Translated to {language}:"
         assert config.model_id == "facebook/nllb-200-1.3B"
         assert config.max_length == 512
@@ -91,8 +92,7 @@ class TestTranslationEnhancerConfig:
         """Test config can be serialized to/from JSON."""
         config = TranslationEnhancerConfig(
             probability=0.2,
-            target_language="French",
-            target_lang_code="fra_Latn",
+            target_language="french",
             model_id="facebook/nllb-200-distilled-600M",
             device="cpu",
             verbose=True,
@@ -117,9 +117,8 @@ class TestTranslationEnhancerConfig:
         config_dict = {
             "type": "translation",  # This should be filtered out
             "probability": 0.3,
-            "target_language": "German",
-            "target_lang_code": "deu_Latn",
-            "source_lang_code": "eng_Latn",
+            "target_language": "german",
+            "source_language": "english",
         }
 
         # Filter out 'type' before creating config (as done in __main__.py)
@@ -127,8 +126,10 @@ class TestTranslationEnhancerConfig:
         config = TranslationEnhancerConfig.from_dict(config_without_type)
 
         assert config.probability == 0.3
-        assert config.target_language == "German"
-        assert config.target_lang_code == "deu_Latn"
+        assert config.target_language == "german"
+        assert config.source_language == "english"
+        assert config.target_lang_code == "deu_Latn"  # Property
+        assert config.source_lang_code == "eng_Latn"  # Property
 
 
 class TestTranslationEnhancer:
@@ -146,7 +147,7 @@ class TestTranslationEnhancer:
     def test_repr(self):
         """Test string representation."""
         config = TranslationEnhancerConfig(
-            probability=0.3, target_language="German"
+            probability=0.3, target_language="german"
         )
         enhancer = TranslationEnhancer(config)
 
@@ -196,8 +197,7 @@ class TestTranslationEnhancer:
 
                 config = TranslationEnhancerConfig(
                     probability=0.1,
-                    target_language="Italian",
-                    target_lang_code="ita_Latn",
+                    target_language="italian",
                     pause_before_ms=300,
                     pause_after_ms=300,
                 )
@@ -237,8 +237,7 @@ class TestTranslationEnhancer:
 
                 config = TranslationEnhancerConfig(
                     probability=1.0,
-                    target_language="Spanish",
-                    target_lang_code="spa_Latn",
+                    target_language="spanish",
                 )
                 enhancer = TranslationEnhancer(config)
 
@@ -276,8 +275,7 @@ class TestTranslationEnhancer:
 
                 config = TranslationEnhancerConfig(
                     probability=0.1,
-                    target_language="Italian",
-                    target_lang_code="ita_Latn",
+                    target_language="italian",
                     pause_before_ms=300,
                     pause_after_ms=300,
                 )

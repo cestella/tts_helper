@@ -6,6 +6,7 @@ from typing import List, Optional
 
 from .chunk import Chunk
 from .enhancer import Enhancer, EnhancerConfig
+from .language import get_flores_code
 
 # Import transformers classes (will be None if not installed)
 try:
@@ -21,13 +22,10 @@ class TranslationEnhancerConfig(EnhancerConfig):
 
     Args:
         probability: Probability of translating a chunk (0.0 to 1.0)
-        target_language: Target language name for announcement (e.g., 'Italian', 'Spanish')
-        target_lang_code: FLORES-200 language code for target (e.g., 'ita_Latn', 'spa_Latn')
-        source_lang_code: FLORES-200 language code for source (default: 'eng_Latn' for English)
-        announcement_template: Template for announcement before translation.
-            Use {language} placeholder for target language.
+        source_language: Source language name (e.g., 'english', 'spanish')
+        target_language: Target language name (e.g., 'italian', 'french')
         translation_voice: Voice to use for translated chunks (None = use default voice)
-        translation_language: TTS language for translated chunks (e.g., 'italian' for Orpheus)
+        translation_language: TTS language override for translated chunks (None = infer from target_language)
         translation_speed: Speed multiplier for translated chunks (e.g., 0.8 for 80% speed, None = use default)
         pause_before_ms: Duration of silence before translated audio in milliseconds (default: 300)
         pause_after_ms: Duration of silence after translated audio in milliseconds (default: 300)
@@ -38,12 +36,8 @@ class TranslationEnhancerConfig(EnhancerConfig):
     """
 
     probability: float = 0.1
-    target_language: str = "Italian"
-    target_lang_code: str = "ita_Latn"
-    source_lang_code: str = "eng_Latn"
-    announcement_template: str = (
-        "The following is that text translated to {language}, please listen and try to comprehend."
-    )
+    source_language: str = "english"
+    target_language: str = "italian"
     translation_voice: Optional[str] = None
     translation_language: Optional[str] = None
     translation_speed: Optional[float] = None
@@ -75,6 +69,20 @@ class TranslationEnhancerConfig(EnhancerConfig):
 
         if self.pause_after_ms < 0:
             raise ValueError(f"pause_after_ms must be >= 0, got: {self.pause_after_ms}")
+
+        # Validate language names (will raise ValueError if unsupported)
+        get_flores_code(self.source_language)
+        get_flores_code(self.target_language)
+
+    @property
+    def source_lang_code(self) -> str:
+        """Get FLORES-200 code for source language."""
+        return get_flores_code(self.source_language)
+
+    @property
+    def target_lang_code(self) -> str:
+        """Get FLORES-200 code for target language."""
+        return get_flores_code(self.target_language)
 
 
 class TranslationEnhancer(Enhancer):

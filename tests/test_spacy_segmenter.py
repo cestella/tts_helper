@@ -15,7 +15,7 @@ class TestSpacySegmenterConfig:
         """Test default configuration values."""
         config = SpacySegmenterConfig()
 
-        assert config.language == "en"
+        assert config.language == "english"
         assert config.strategy == "char_count"
         assert config.sentences_per_chunk == 3
         assert config.max_chars == 300
@@ -26,12 +26,12 @@ class TestSpacySegmenterConfig:
     def test_custom_config(self):
         """Test custom configuration values."""
         config = SpacySegmenterConfig(
-            language="de",
+            language="german",
             max_chars=500,
             disable_pipes=["ner"],
         )
 
-        assert config.language == "de"
+        assert config.language == "german"
         assert config.max_chars == 500
         assert config.disable_pipes == ["ner"]
 
@@ -63,7 +63,7 @@ class TestSpacySegmenterConfig:
     def test_sentence_count_strategy_config(self):
         """Test configuration for sentence count strategy."""
         config = SpacySegmenterConfig(
-            language="en",
+            language="english",
             strategy="sentence_count",
             sentences_per_chunk=5,
         )
@@ -74,7 +74,7 @@ class TestSpacySegmenterConfig:
     def test_explicit_model_name(self):
         """Test using explicit model name."""
         config = SpacySegmenterConfig(
-            language="en",
+            language="english",
             model_name="en_core_web_md",
         )
 
@@ -83,7 +83,7 @@ class TestSpacySegmenterConfig:
     def test_config_serialization(self):
         """Test config can be serialized to/from JSON."""
         config = SpacySegmenterConfig(
-            language="fr",
+            language="french",
             max_chars=400,
             disable_pipes=["ner", "parser"],
         )
@@ -105,7 +105,7 @@ class TestSpacySegmenter:
     @pytest.fixture
     def config(self):
         """Fixture providing default config."""
-        return SpacySegmenterConfig(language="en", max_chars=100)
+        return SpacySegmenterConfig(language="english", max_chars=100)
 
     @pytest.fixture
     def segmenter(self, config):
@@ -142,7 +142,7 @@ class TestSpacySegmenter:
 
     def test_segment_respects_max_chars(self):
         """Test that chunks respect max_chars limit."""
-        config = SpacySegmenterConfig(language="en", max_chars=50)
+        config = SpacySegmenterConfig(language="english", max_chars=50)
         segmenter = SpacySegmenter(config)
 
         text = (
@@ -160,7 +160,7 @@ class TestSpacySegmenter:
 
     def test_segment_long_single_sentence(self):
         """Test handling of a single sentence longer than max_chars."""
-        config = SpacySegmenterConfig(language="en", max_chars=20)
+        config = SpacySegmenterConfig(language="english", max_chars=20)
         segmenter = SpacySegmenter(config)
 
         text = "This is a very long sentence that exceeds the maximum character limit."
@@ -172,7 +172,7 @@ class TestSpacySegmenter:
 
     def test_segment_multiple_sentences(self):
         """Test segmentation with multiple sentences."""
-        config = SpacySegmenterConfig(language="en", max_chars=100)
+        config = SpacySegmenterConfig(language="english", max_chars=100)
         segmenter = SpacySegmenter(config)
 
         text = (
@@ -192,7 +192,7 @@ class TestSpacySegmenter:
 
     def test_segment_preserves_sentence_boundaries(self):
         """Test that segmentation respects sentence boundaries."""
-        config = SpacySegmenterConfig(language="en", max_chars=100)
+        config = SpacySegmenterConfig(language="english", max_chars=100)
         segmenter = SpacySegmenter(config)
 
         text = "Dr. Smith went to the store. He bought milk and eggs. Then he went home."
@@ -222,13 +222,13 @@ class TestSpacySegmenter:
         repr_str = repr(segmenter)
 
         assert "SpacySegmenter" in repr_str
-        assert "en" in repr_str
+        assert "english" in repr_str
         assert "100" in repr_str  # max_chars
 
     def test_different_languages(self):
         """Test segmenter with different languages."""
         # Test German (skip if model not installed)
-        config_de = SpacySegmenterConfig(language="de", max_chars=100)
+        config_de = SpacySegmenterConfig(language="german", max_chars=100)
         segmenter_de = SpacySegmenter(config_de)
 
         german_text = "Das ist der erste Satz. Das ist der zweite Satz."
@@ -244,7 +244,7 @@ class TestSpacySegmenter:
     def test_model_not_installed_raises_error(self):
         """Test that missing model raises helpful error."""
         config = SpacySegmenterConfig(
-            language="en",
+            language="english",
             model_name="en_core_web_nonexistent",
         )
         segmenter = SpacySegmenter(config)
@@ -287,7 +287,7 @@ class TestSpacySegmenter:
     def test_sentence_count_strategy(self):
         """Test segmentation using sentence count strategy."""
         config = SpacySegmenterConfig(
-            language="en",
+            language="english",
             strategy="sentence_count",
             sentences_per_chunk=2,
         )
@@ -314,7 +314,7 @@ class TestSpacySegmenter:
     def test_sentence_count_with_three_sentences(self):
         """Test sentence count strategy with default of 3 sentences."""
         config = SpacySegmenterConfig(
-            language="en",
+            language="english",
             strategy="sentence_count",
             sentences_per_chunk=3,
         )
@@ -333,7 +333,7 @@ class TestSpacySegmenter:
     def test_repr_with_sentence_count_strategy(self):
         """Test string representation with sentence count strategy."""
         config = SpacySegmenterConfig(
-            language="en",
+            language="english",
             strategy="sentence_count",
             sentences_per_chunk=5,
         )
@@ -346,7 +346,7 @@ class TestSpacySegmenter:
     def test_repr_with_char_count_strategy(self):
         """Test string representation with char count strategy."""
         config = SpacySegmenterConfig(
-            language="en",
+            language="english",
             strategy="char_count",
             max_chars=200,
         )
@@ -362,7 +362,7 @@ class TestSpacySegmenterIntegration:
 
     def test_audiobook_paragraph(self):
         """Test with realistic audiobook paragraph."""
-        config = SpacySegmenterConfig(language="en", max_chars=350)
+        config = SpacySegmenterConfig(language="english", max_chars=350)
         segmenter = SpacySegmenter(config)
 
         text = (
@@ -383,7 +383,7 @@ class TestSpacySegmenterIntegration:
 
     def test_dialogue_text(self):
         """Test with dialogue text."""
-        config = SpacySegmenterConfig(language="en", max_chars=200)
+        config = SpacySegmenterConfig(language="english", max_chars=200)
         segmenter = SpacySegmenter(config)
 
         text = (

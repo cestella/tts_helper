@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import List, Optional
 
 from .normalizer import Normalizer, NormalizerConfig
+from .language import get_nemo_code
 
 
 @dataclass
@@ -17,30 +18,40 @@ class NemoNormalizerConfig(NormalizerConfig):
     Configuration for NeMo-based text normalization.
 
     Attributes:
-        language: ISO 639-1 language code (e.g., 'en', 'de', 'es').
+        language: Unified language name (e.g., 'english', 'german', 'spanish').
         input_case: Input text case handling. Options: 'cased', 'lower_cased'.
         cache_dir: Optional directory to cache normalization grammars.
         verbose: Whether to print verbose normalization info.
     """
 
-    language: str = "en"
+    language: str = "english"
     input_case: str = "cased"
     cache_dir: Optional[str] = None
     verbose: bool = False
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
-        valid_languages = ["en", "de", "es", "pt", "ru", "fr", "vi"]
-        if self.language not in valid_languages:
+        # Get NeMo code (will raise ValueError if unsupported)
+        nemo_code = get_nemo_code(self.language)
+
+        # NeMo supported languages (as of v1.1.0)
+        # Note: Italian has known issues with digit normalization but is supported
+        valid_nemo_codes = ["en", "de", "es", "pt", "ru", "fr", "vi", "it"]
+        if nemo_code not in valid_nemo_codes:
             raise ValueError(
-                f"Language '{self.language}' not supported by NeMo. "
-                f"Supported languages: {valid_languages}"
+                f"Language '{self.language}' (NeMo code: '{nemo_code}') not supported by NeMo. "
+                f"NeMo supports: english, german, spanish, portuguese, russian, french, vietnamese, italian"
             )
 
         if self.input_case not in ["cased", "lower_cased"]:
             raise ValueError(
                 f"input_case must be 'cased' or 'lower_cased', got '{self.input_case}'"
             )
+
+    @property
+    def nemo_language_code(self) -> str:
+        """Get NeMo language code."""
+        return get_nemo_code(self.language)
 
 
 class NemoNormalizer(Normalizer):
@@ -98,7 +109,7 @@ class NemoNormalizer(Normalizer):
             try:
                 self._normalizer = NeMoNormalizer(
                     input_case=self.config.input_case,
-                    lang=self.config.language,
+                    lang=self.config.nemo_language_code,
                     cache_dir=self.config.cache_dir,
                 )
             except Exception as e:

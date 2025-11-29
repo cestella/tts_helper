@@ -4,10 +4,10 @@ import tempfile
 from pathlib import Path
 
 import pytest
+import trafilatura
 
 # Skip all tests if dependencies not available
 pytest.importorskip("ebooklib")
-pytest.importorskip("bs4")
 pytest.importorskip("fitz")
 
 from book_extractor import extract_epub_chapters, extract_pdf_chapters
@@ -54,7 +54,7 @@ class TestExtractTextFromHtml:
         title, text = extract_text_from_html(html)
 
         assert title == "Chapter Title"
-        assert "Content here." in text
+        assert "Content here" in text
 
     def test_extract_with_h2(self):
         """Test extraction with h2 title when no h1."""
@@ -62,7 +62,7 @@ class TestExtractTextFromHtml:
         title, text = extract_text_from_html(html)
 
         assert title == "Section Title"
-        assert "Content here." in text
+        assert "Content here" in text
 
     def test_extract_no_title(self):
         """Test extraction with no title tags."""
@@ -70,15 +70,22 @@ class TestExtractTextFromHtml:
         title, text = extract_text_from_html(html)
 
         assert title is None
-        assert "Just some content." in text
+        assert "Just some content" in text
 
     def test_text_cleanup(self):
-        """Test that text is properly cleaned."""
-        html = "<html><body><p>Line 1</p><p>Line 2</p></body></html>"
+        """Test that text is properly cleaned and normalized."""
+        html = """
+        <html>
+            <body>
+                <p>Line 1</p>
+                <p>Line 2 with   extra   spaces.</p>
+            </body>
+        </html>
+        """
         title, text = extract_text_from_html(html)
 
         assert "Line 1" in text
-        assert "Line 2" in text
+        assert "Line 2 with extra spaces." in text
 
 
 class TestEpubExtractor:
