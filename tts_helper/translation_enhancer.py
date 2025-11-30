@@ -2,7 +2,7 @@
 
 import random
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Any
 
 from .chunk import Chunk
 from .enhancer import Enhancer, EnhancerConfig
@@ -12,8 +12,8 @@ from .language import get_flores_code
 try:
     from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 except ImportError:
-    AutoModelForSeq2SeqLM = None
-    AutoTokenizer = None
+    AutoModelForSeq2SeqLM = None  # type: ignore[assignment,misc]
+    AutoTokenizer = None  # type: ignore[assignment,misc]
 
 
 @dataclass
@@ -38,9 +38,9 @@ class TranslationEnhancerConfig(EnhancerConfig):
     probability: float = 0.1
     source_language: str = "english"
     target_language: str = "italian"
-    translation_voice: Optional[str] = None
-    translation_language: Optional[str] = None
-    translation_speed: Optional[float] = None
+    translation_voice: str | None = None
+    translation_language: str | None = None
+    translation_speed: float | None = None
     pause_before_ms: int = 300
     pause_after_ms: int = 300
     model_id: str = "facebook/nllb-200-distilled-600M"
@@ -48,7 +48,7 @@ class TranslationEnhancerConfig(EnhancerConfig):
     device: str = "cpu"
     verbose: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         if not (0.0 <= self.probability <= 1.0):
             raise ValueError(
@@ -62,10 +62,14 @@ class TranslationEnhancerConfig(EnhancerConfig):
             raise ValueError(f"device must be 'cpu' or 'cuda', got: {self.device}")
 
         if self.translation_speed is not None and self.translation_speed <= 0:
-            raise ValueError(f"translation_speed must be > 0, got: {self.translation_speed}")
+            raise ValueError(
+                f"translation_speed must be > 0, got: {self.translation_speed}"
+            )
 
         if self.pause_before_ms < 0:
-            raise ValueError(f"pause_before_ms must be >= 0, got: {self.pause_before_ms}")
+            raise ValueError(
+                f"pause_before_ms must be >= 0, got: {self.pause_before_ms}"
+            )
 
         if self.pause_after_ms < 0:
             raise ValueError(f"pause_after_ms must be >= 0, got: {self.pause_after_ms}")
@@ -119,7 +123,7 @@ class TranslationEnhancer(Enhancer):
         self._tokenizer = None
 
     @property
-    def model(self):
+    def model(self) -> Any:
         """Lazy-load NLLB model.
 
         Returns:
@@ -143,7 +147,7 @@ class TranslationEnhancer(Enhancer):
             self._model = AutoModelForSeq2SeqLM.from_pretrained(self.config.model_id)
 
             # Move model to device
-            self._model = self._model.to(self.config.device)
+            self._model = self._model.to(self.config.device)  # type: ignore[attr-defined]
 
             if self.config.verbose:
                 print(f"  Model loaded on {self.config.device}")
@@ -151,7 +155,7 @@ class TranslationEnhancer(Enhancer):
         return self._model
 
     @property
-    def tokenizer(self):
+    def tokenizer(self) -> Any:
         """Get tokenizer (loads model if not already loaded)."""
         if self._tokenizer is None:
             _ = self.model  # Trigger model loading which also loads tokenizer
@@ -184,7 +188,7 @@ class TranslationEnhancer(Enhancer):
         words = translation.split()
         if len(words) >= 15:  # Only check if enough words
             for i in range(len(words) - 4):
-                pattern = " ".join(words[i:i + 5])
+                pattern = " ".join(words[i : i + 5])
                 # Count occurrences of this 5-word pattern
                 count = translation.count(pattern)
                 if count >= 3:
@@ -204,7 +208,7 @@ class TranslationEnhancer(Enhancer):
 
         return True
 
-    def _translate(self, text: str) -> Optional[str]:
+    def _translate(self, text: str) -> str | None:
         """Translate text using NLLB model.
 
         Args:
@@ -250,14 +254,14 @@ class TranslationEnhancer(Enhancer):
                     f"  ✓ Translated to {self.config.target_language}: {translation[:50]}..."
                 )
 
-            return translation
+            return translation  # type: ignore[no-any-return]
 
         except Exception as e:
             if self.config.verbose:
                 print(f"  Translation error: {e}")
             return None
 
-    def enhance(self, chunks: List[Chunk]) -> List[Chunk]:
+    def enhance(self, chunks: list[Chunk]) -> list[Chunk]:
         """Enhance chunks by randomly translating some.
 
         For each chunk, there's a probability that it will be translated.

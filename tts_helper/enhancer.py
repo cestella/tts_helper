@@ -8,7 +8,7 @@ import json
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 from .chunk import Chunk
 
@@ -17,7 +17,7 @@ from .chunk import Chunk
 class EnhancerConfig:
     """Base configuration for text enhancers."""
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert configuration to dictionary.
 
         Returns:
@@ -26,7 +26,7 @@ class EnhancerConfig:
         return asdict(self)
 
     @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any]) -> "EnhancerConfig":
+    def from_dict(cls, config_dict: dict[str, Any]) -> "EnhancerConfig":
         """Create configuration from dictionary.
 
         Args:
@@ -81,7 +81,7 @@ class Enhancer(ABC):
         self.config = config
 
     @abstractmethod
-    def enhance(self, chunks: List[Chunk]) -> List[Chunk]:
+    def enhance(self, chunks: list[Chunk]) -> list[Chunk]:
         """Enhance text chunks.
 
         This method can:

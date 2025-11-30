@@ -7,16 +7,15 @@ for TTS processing. For example: "$123" → "one hundred twenty three dollars"
 
 import json
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Type, TypeVar
-
+from typing import Any, TypeVar
 
 T = TypeVar("T", bound="NormalizerConfig")
 
 
 @dataclass
-class NormalizerConfig(ABC):
+class NormalizerConfig:
     """
     Base configuration class for text normalizers.
 
@@ -25,7 +24,7 @@ class NormalizerConfig(ABC):
     """
 
     @classmethod
-    def from_dict(cls: Type[T], config_dict: Dict[str, Any]) -> T:
+    def from_dict(cls: type[T], config_dict: dict[str, Any]) -> T:
         """
         Create a configuration instance from a dictionary.
 
@@ -38,7 +37,7 @@ class NormalizerConfig(ABC):
         return cls(**config_dict)
 
     @classmethod
-    def from_json(cls: Type[T], json_path: str | Path) -> T:
+    def from_json(cls: type[T], json_path: str | Path) -> T:
         """
         Load configuration from a JSON file.
 
@@ -57,7 +56,7 @@ class NormalizerConfig(ABC):
             config_dict = json.load(f)
         return cls.from_dict(config_dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert configuration to a dictionary.
 
@@ -113,7 +112,7 @@ class Normalizer(ABC):
         """
         pass
 
-    def normalize_batch(self, texts: List[str]) -> List[str]:
+    def normalize_batch(self, texts: list[str]) -> list[str]:
         """
         Normalize multiple texts.
 

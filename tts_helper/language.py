@@ -4,8 +4,6 @@ This module provides a central mapping from user-friendly language names
 to the various codes required by different components (normalizer, TTS, translation).
 """
 
-from typing import Dict, Optional
-
 
 class LanguageCode:
     """Language codes for a specific language in various formats."""
@@ -15,8 +13,8 @@ class LanguageCode:
         name: str,
         iso_639_1: str,
         flores_200: str,
-        nemo: Optional[str] = None,
-        kokoro: Optional[str] = None,
+        nemo: str | None = None,
+        kokoro: str | None = None,
     ):
         """Initialize language codes.
 
@@ -35,7 +33,7 @@ class LanguageCode:
 
 
 # Language database
-_LANGUAGES: Dict[str, LanguageCode] = {
+_LANGUAGES: dict[str, LanguageCode] = {
     "english": LanguageCode(
         name="english",
         iso_639_1="en",
@@ -118,8 +116,7 @@ def get_language(name: str) -> LanguageCode:
     if name_lower not in _LANGUAGES:
         supported = ", ".join(sorted(_LANGUAGES.keys()))
         raise ValueError(
-            f"Unsupported language: '{name}'. "
-            f"Supported languages: {supported}"
+            f"Unsupported language: '{name}'. " f"Supported languages: {supported}"
         )
     return _LANGUAGES[name_lower]
 

@@ -6,7 +6,7 @@ sentence boundary detection and intelligent chunking.
 """
 
 from dataclasses import dataclass, field
-from typing import List, Literal, Optional
+from typing import Any, Literal
 
 import spacy
 from spacy.language import Language
@@ -43,8 +43,8 @@ class SpacySegmenterConfig(SegmenterConfig):
     sentences_per_chunk: int = 3
     max_chars: int = 300
     min_chars: int = 3
-    model_name: Optional[str] = None
-    disable_pipes: List[str] = field(default_factory=lambda: ["ner", "lemmatizer"])
+    model_name: str | None = None
+    disable_pipes: list[str] = field(default_factory=lambda: ["ner", "lemmatizer"])
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -108,7 +108,7 @@ class SpacySegmenter(Segmenter):
         """
         super().__init__(config)
         self.config: SpacySegmenterConfig = config
-        self._nlp: Optional[Language] = None
+        self._nlp: Language | None = None
 
     @property
     def nlp(self) -> Language:
@@ -132,9 +132,7 @@ class SpacySegmenter(Segmenter):
                 model_name = model_metadata.model_name
 
             try:
-                self._nlp = spacy.load(
-                    model_name, disable=self.config.disable_pipes
-                )
+                self._nlp = spacy.load(model_name, disable=self.config.disable_pipes)
             except OSError as e:
                 raise OSError(
                     f"Failed to load spaCy model '{model_name}'. "
@@ -143,7 +141,7 @@ class SpacySegmenter(Segmenter):
 
         return self._nlp
 
-    def _merge_small_chunks(self, chunks: List[str]) -> List[str]:
+    def _merge_small_chunks(self, chunks: list[str]) -> list[str]:
         """
         Merge chunks that are too small with adjacent chunks.
 
@@ -159,7 +157,7 @@ class SpacySegmenter(Segmenter):
         if not chunks or self.config.min_chars == 0:
             return chunks
 
-        merged: List[str] = []
+        merged: list[str] = []
         i = 0
 
         while i < len(chunks):
@@ -185,7 +183,7 @@ class SpacySegmenter(Segmenter):
 
         return merged
 
-    def segment(self, text: str) -> List[str]:
+    def segment(self, text: str) -> list[str]:
         """
         Segment text into chunks based on the configured strategy.
 
@@ -217,7 +215,7 @@ class SpacySegmenter(Segmenter):
 
         return chunks
 
-    def _segment_by_sentence_count(self, sentences) -> List[str]:
+    def _segment_by_sentence_count(self, sentences: Any) -> list[str]:
         """
         Segment by grouping a fixed number of sentences per chunk.
 
@@ -227,8 +225,8 @@ class SpacySegmenter(Segmenter):
         Returns:
             List of text chunks.
         """
-        chunks: List[str] = []
-        current_sentences: List[str] = []
+        chunks: list[str] = []
+        current_sentences: list[str] = []
 
         for sent in sentences:
             sentence_text = sent.text.strip()
@@ -250,7 +248,7 @@ class SpacySegmenter(Segmenter):
 
         return chunks
 
-    def _hard_split_text(self, text: str) -> List[str]:
+    def _hard_split_text(self, text: str) -> list[str]:
         """
         Hard-split text to guarantee chunks within max_chars.
 
@@ -267,12 +265,14 @@ class SpacySegmenter(Segmenter):
             return [text]
 
         import warnings
+
         warnings.warn(
             f"Hard-splitting {len(text)}-char text (max: {self.config.max_chars}). "
-            f"Preview: {text[:100]}..."
+            f"Preview: {text[:100]}...",
+            stacklevel=2,
         )
 
-        chunks: List[str] = []
+        chunks: list[str] = []
         words = text.split()
         current_chunk = ""
 
@@ -286,7 +286,7 @@ class SpacySegmenter(Segmenter):
 
                 # Hard-cut the word into max_chars pieces
                 for i in range(0, len(word), self.config.max_chars):
-                    chunks.append(word[i:i + self.config.max_chars])
+                    chunks.append(word[i : i + self.config.max_chars])
                 continue
 
             # Try adding word to current chunk
@@ -305,7 +305,7 @@ class SpacySegmenter(Segmenter):
 
         return chunks
 
-    def _segment_by_char_count(self, sentences) -> List[str]:
+    def _segment_by_char_count(self, sentences: Any) -> list[str]:
         """
         Segment by character count while preserving sentence boundaries.
 
@@ -315,7 +315,7 @@ class SpacySegmenter(Segmenter):
         Returns:
             List of text chunks, guaranteed to be ≤max_chars.
         """
-        chunks: List[str] = []
+        chunks: list[str] = []
         current_chunk: str = ""
 
         for sent in sentences:
@@ -337,7 +337,10 @@ class SpacySegmenter(Segmenter):
                 continue
 
             # If adding this sentence would exceed the limit, start a new chunk
-            if current_chunk and len(current_chunk) + 1 + len(sentence_text) > self.config.max_chars:
+            if (
+                current_chunk
+                and len(current_chunk) + 1 + len(sentence_text) > self.config.max_chars
+            ):
                 chunks.append(current_chunk)
                 current_chunk = sentence_text
             else:
@@ -357,9 +360,11 @@ class SpacySegmenter(Segmenter):
         if oversized:
             # This should never happen, but if it does, fix it
             import warnings
+
             warnings.warn(
                 f"Found {len(oversized)} oversized chunks after segmentation! "
-                f"Re-splitting with hard split. This indicates a bug in the segmenter."
+                f"Re-splitting with hard split. This indicates a bug in the segmenter.",
+                stacklevel=2,
             )
             fixed_chunks = []
             for chunk in chunks:
@@ -373,9 +378,10 @@ class SpacySegmenter(Segmenter):
 
     def __repr__(self) -> str:
         """String representation of the segmenter."""
-        model_name = self.config.model_name or get_model_for_language(
-            self.config.language
-        ).model_name
+        model_name = (
+            self.config.model_name
+            or get_model_for_language(self.config.language).model_name  # type: ignore[union-attr]
+        )
 
         if self.config.strategy == "sentence_count":
             strategy_info = f"sentences_per_chunk={self.config.sentences_per_chunk}"

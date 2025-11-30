@@ -3,11 +3,14 @@
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
 
 from .stitcher import Stitcher, StitcherConfig
+
+if TYPE_CHECKING:
+    from pydub import AudioSegment  # type: ignore[import-untyped]
 
 
 @dataclass
@@ -26,9 +29,9 @@ class PydubStitcherConfig(StitcherConfig):
     crossfade_duration_ms: int = 0
     output_format: Literal["wav", "mp3", "ogg", "flac"] = "wav"
     export_bitrate: str = "192k"
-    sample_rate: Optional[int] = None
+    sample_rate: int | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration."""
         if self.silence_duration_ms < 0:
             raise ValueError("silence_duration_ms must be >= 0")
@@ -72,18 +75,16 @@ class PydubStitcher(Stitcher):
             from pydub import AudioSegment
 
             self._AudioSegment = AudioSegment
-        except ImportError:
+        except ImportError as err:
             raise ImportError(
                 "pydub is not installed. Install it with: pip install pydub\n"
                 "Note: pydub also requires ffmpeg. Install with:\n"
                 "  macOS: brew install ffmpeg\n"
                 "  Ubuntu: sudo apt-get install ffmpeg\n"
                 "  Windows: Download from https://ffmpeg.org/"
-            )
+            ) from err
 
-    def stitch(
-        self, audio_files: List[Union[str, Path]], output_path: Union[str, Path]
-    ) -> None:
+    def stitch(self, audio_files: list[str | Path], output_path: str | Path) -> None:
         """Stitch audio files together.
 
         Args:
@@ -118,8 +119,8 @@ class PydubStitcher(Stitcher):
 
     def stitch_from_arrays(
         self,
-        audio_arrays: List[Tuple[int, np.ndarray]],
-        output_path: Union[str, Path],
+        audio_arrays: list[tuple[int, np.ndarray]],
+        output_path: str | Path,
     ) -> None:
         """Stitch audio arrays together.
 
@@ -143,14 +144,12 @@ class PydubStitcher(Stitcher):
                 f"All audio arrays must have the same sample rate. Got: {set(sample_rates)}"
             )
 
-        sample_rate = sample_rates[0]
-
         # Convert arrays to AudioSegment objects via temporary WAV files
         segments = []
         with tempfile.TemporaryDirectory() as tmpdir:
             for i, (sr, audio_data) in enumerate(audio_arrays):
                 # Save array to temporary WAV file
-                from scipy.io.wavfile import write
+                from scipy.io.wavfile import write  # type: ignore[import-untyped]
 
                 temp_path = Path(tmpdir) / f"temp_{i}.wav"
 
@@ -172,7 +171,7 @@ class PydubStitcher(Stitcher):
             # Export
             self._export(combined, output_path)
 
-    def _combine_segments(self, segments: List) -> "AudioSegment":
+    def _combine_segments(self, segments: list) -> "AudioSegment":
         """Combine audio segments with silence and/or crossfade.
 
         Args:
@@ -222,7 +221,7 @@ class PydubStitcher(Stitcher):
             audio = audio.set_frame_rate(self.config.sample_rate)
 
         # Export based on format
-        export_params = {"format": self.config.output_format}
+        export_params: dict[str, str] = {"format": self.config.output_format}
 
         if self.config.output_format == "mp3":
             export_params["bitrate"] = self.config.export_bitrate

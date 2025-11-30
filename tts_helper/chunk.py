@@ -1,7 +1,6 @@
 """Chunk data structure for enhanced text processing."""
 
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -18,10 +17,10 @@ class Chunk:
     """
 
     text: str
-    voice: Optional[str] = None
-    language: Optional[str] = None
-    speed: Optional[float] = None
-    silence_ms: Optional[int] = None
+    voice: str | None = None
+    language: str | None = None
+    speed: float | None = None
+    silence_ms: int | None = None
 
     def __str__(self) -> str:
         """String representation returns just the text."""

@@ -8,7 +8,7 @@ from .epub_extractor import extract_epub_chapters
 from .markdown_extractor import extract_markdown_chapters
 
 
-def main():
+def main() -> int:
     """Main entry point for book extractor CLI."""
     parser = argparse.ArgumentParser(
         description="Extract chapters from EPUB and Markdown books with lexicographic naming",
@@ -119,6 +119,7 @@ Output files will be named with lexicographic ordering:
         print(f"Error: {e}", file=sys.stderr)
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         return 1
 

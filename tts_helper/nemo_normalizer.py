@@ -6,10 +6,13 @@ library for high-quality text normalization.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import TYPE_CHECKING, Any
 
-from .normalizer import Normalizer, NormalizerConfig
 from .language import get_nemo_code
+from .normalizer import Normalizer, NormalizerConfig
+
+if TYPE_CHECKING:
+    pass
 
 
 @dataclass
@@ -26,7 +29,7 @@ class NemoNormalizerConfig(NormalizerConfig):
 
     language: str = "english"
     input_case: str = "cased"
-    cache_dir: Optional[str] = None
+    cache_dir: str | None = None
     verbose: bool = False
 
     def __post_init__(self) -> None:
@@ -81,10 +84,10 @@ class NemoNormalizer(Normalizer):
         """
         super().__init__(config)
         self.config: NemoNormalizerConfig = config
-        self._normalizer: Optional[object] = None
+        self._normalizer: Any = None
 
     @property
-    def normalizer(self) -> object:
+    def normalizer(self) -> Any:
         """
         Lazy-load the NeMo normalizer.
 
@@ -97,9 +100,7 @@ class NemoNormalizer(Normalizer):
         """
         if self._normalizer is None:
             try:
-                from nemo_text_processing.text_normalization.normalize import (
-                    Normalizer as NeMoNormalizer,
-                )
+                from nemo_text_processing.text_normalization.normalize import Normalizer as NeMoNormalizer  # type: ignore[import-untyped]  # fmt: skip  # isort: skip
             except ImportError as e:
                 raise ImportError(
                     "nemo_text_processing is not installed. "
@@ -113,9 +114,7 @@ class NemoNormalizer(Normalizer):
                     cache_dir=self.config.cache_dir,
                 )
             except Exception as e:
-                raise RuntimeError(
-                    f"Failed to initialize NeMo normalizer: {e}"
-                ) from e
+                raise RuntimeError(f"Failed to initialize NeMo normalizer: {e}") from e
 
         return self._normalizer
 
@@ -140,9 +139,11 @@ class NemoNormalizer(Normalizer):
             return text
         try:
             sentences = self.normalizer.split_text_into_sentences(text)
-            normalized = "\n".join(self.normalizer.normalize_list(
-                sentences, verbose=self.config.verbose, punct_post_process=True
-            ))
+            normalized = "\n".join(
+                self.normalizer.normalize_list(
+                    sentences, verbose=self.config.verbose, punct_post_process=True
+                )
+            )
             return normalized
         except Exception as e:
             # If normalization fails, return original text with a warning
@@ -151,11 +152,12 @@ class NemoNormalizer(Normalizer):
 
             warnings.warn(
                 f"NeMo normalization failed for text: '{text}'. "
-                f"Error: {e}. Returning original text."
+                f"Error: {e}. Returning original text.",
+                stacklevel=2,
             )
             return text
 
-    def normalize_batch(self, texts: List[str]) -> List[str]:
+    def normalize_batch(self, texts: list[str]) -> list[str]:
         """
         Normalize multiple texts efficiently.
 

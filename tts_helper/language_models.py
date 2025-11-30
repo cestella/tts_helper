@@ -7,7 +7,6 @@ for consistent language handling.
 """
 
 from dataclasses import dataclass
-from typing import Dict, Optional
 
 from .language import get_iso_code
 
@@ -33,7 +32,7 @@ class LanguageModelMetadata:
 
 
 # Centralized language to model mapping
-LANGUAGE_MODEL_MAP: Dict[str, LanguageModelMetadata] = {
+LANGUAGE_MODEL_MAP: dict[str, LanguageModelMetadata] = {
     "en": LanguageModelMetadata(
         model_name="en_core_web_sm",
         language_code="en",
@@ -100,7 +99,7 @@ LANGUAGE_MODEL_MAP: Dict[str, LanguageModelMetadata] = {
 }
 
 
-def get_model_for_language(language: str) -> Optional[LanguageModelMetadata]:
+def get_model_for_language(language: str) -> LanguageModelMetadata | None:
     """
     Get the spaCy model metadata for a given language.
 

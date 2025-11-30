@@ -2,6 +2,247 @@
 
 An industrial-grade audiobook text-to-speech processor pipeline for intelligent text segmentation and chunking.
 
+## TL;DR - Create an M4B Audiobook
+
+Here's the complete workflow from EPUB to M4B audiobook:
+
+```bash
+# 1. Install (see Installation section below for details)
+pip install -r requirements.txt
+pip install -e .
+brew install m4b-tool  # macOS
+
+# 2. Extract chapters from EPUB
+python -m book_extractor book.epub --output chapters/
+
+# 3. Review and remove unwanted chapters (intros, copyright, etc.)
+rm chapters/000_introduction.txt
+rm chapters/999_copyright.txt
+
+# 4. Generate M4B audiobook with ISBN metadata
+python -m tts_helper chapters/ --output audiobook/ --isbn 978-0-441-00731-2
+
+# Result: audiobook/the_man_in_the_high_castle.m4b
+```
+
+**What this does:**
+- Extracts each chapter to individual text files (one sentence per line)
+- Converts each chapter to high-quality MP3 audio using Kokoro TTS
+- Fetches book metadata (title, author, year) from ISBN
+- Combines all chapters into a single M4B file with chapter markers
+- Output filename is auto-generated from book title
+
+See [Installation](#installation) for detailed setup instructions.
+
+## Command Line Interface
+
+TTS Helper includes a powerful CLI for converting text files to audiobooks with a single command.
+
+### Quick Start
+
+```bash
+# Generate a default configuration file
+python -m tts_helper --create-config
+
+# Convert text file to audiobook with defaults
+python -m tts_helper input.txt --output audiobook.mp3
+
+# Convert with custom configuration
+python -m tts_helper input.txt --config config.json --output audiobook.mp3
+
+# Verbose output to see progress
+python -m tts_helper input.txt --output audiobook.mp3 --verbose
+
+# Keep intermediate audio chunks
+python -m tts_helper input.txt --output audiobook.mp3 --keep-chunks
+
+# Process directory of chapters to M4B audiobook (directory mode only)
+python -m tts_helper chapters_dir/ --output audiobooks/ --isbn 978-0-441-00731-2
+```
+
+### Configuration File Format
+
+The CLI uses a JSON configuration file to control all pipeline components. Generate a default configuration with:
+
+```bash
+python -m tts_helper --create-config
+```
+
+This creates `config.json` with the following structure:
+
+```json
+{
+  "tts_engine": "kokoro",
+  "normalizer": {
+    "language": "en",
+    "input_case": "cased",
+    "verbose": false
+  },
+  "segmenter": {
+    "language": "en",
+    "strategy": "char_count",
+    "max_chars": 300,
+    "sentences_per_chunk": 3
+  },
+  "tts": {
+    "language": "english",
+    "voice": "af_sarah",
+    "speed": 1.0,
+    "verbose": false
+  },
+  "stitcher": {
+    "silence_duration_ms": 750,
+    "crossfade_duration_ms": 0,
+    "output_format": "mp3",
+    "export_bitrate": "192k"
+  },
+  "m4b_tool_args": {
+    "audio-bitrate": "64k",
+    "use-filenames-as-chapters": "",
+    "jobs": "4"
+  },
+  "skip_normalization": false
+}
+```
+
+**Configuration Sections:**
+
+- **tts_engine**: Currently uses `"kokoro"` TTS engine
+  - Kokoro: Fast, lightweight, multi-language support, works well on CPU
+
+- **normalizer**: Controls text normalization (numbers, dates, currency → spoken form)
+  - See `NemoNormalizerConfig` for available options
+
+- **segmenter**: Controls how text is chunked for TTS
+  - See `SpacySegmenterConfig` for available options
+
+- **tts**: Controls Kokoro speech synthesis settings
+  - See `KokoroTTSConfig` for available options
+
+- **stitcher**: Controls how audio chunks are combined
+  - See `PydubStitcherConfig` for available options
+
+- **m4b_tool_args**: Arguments passed to m4b-tool for M4B creation (optional, only used with `--isbn`)
+  - Keys are argument names without `--` prefix
+  - Values are argument values, or empty string `""` for flags without values
+  - Common arguments:
+    - `"audio-bitrate"`: Audio bitrate for M4B (e.g., `"64k"`, `"128k"`)
+    - `"use-filenames-as-chapters"`: Use chunk filenames as chapter names (empty string value)
+    - `"jobs"`: Number of parallel jobs (e.g., `"4"`)
+  - Book metadata (title, author, year) are automatically fetched from ISBN
+
+- **skip_normalization**: Set to `true` to skip the normalization step
+
+### CLI Options
+
+```
+usage: python -m tts_helper [-h] [-o OUTPUT] [-c CONFIG] [--create-config]
+                            [--keep-chunks] [-v] [input]
+
+positional arguments:
+  input                 Input text file to convert to audiobook
+
+options:
+  -h, --help            show this help message and exit
+  -o, --output OUTPUT   Output audiobook file (e.g., audiobook.mp3)
+  -c, --config CONFIG   JSON configuration file for pipeline components
+  --create-config       Create a default configuration file (config.json) and exit
+  --keep-chunks         Keep individual audio chunk files
+  -v, --verbose         Print verbose progress information
+```
+
+### Example Workflows
+
+**1. Basic audiobook with defaults:**
+```bash
+python -m tts_helper story.txt --output story.mp3
+```
+
+**2. Custom voice and format:**
+Edit `config.json`:
+```json
+{
+  "tts": {
+    "language": "english",
+    "voice": "leo",
+    "use_gpu": true
+  },
+  "stitcher": {
+    "output_format": "wav",
+    "silence_duration_ms": 1000
+  }
+}
+```
+
+Run:
+```bash
+python -m tts_helper story.txt --config config.json --output story.wav
+```
+
+**3. French audiobook with crossfade:**
+Edit `config.json`:
+```json
+{
+  "normalizer": {
+    "language": "fr"
+  },
+  "segmenter": {
+    "language": "fr"
+  },
+  "tts": {
+    "language": "french",
+    "voice": "pierre"
+  },
+  "stitcher": {
+    "crossfade_duration_ms": 100,
+    "silence_duration_ms": 0,
+    "output_format": "mp3"
+  }
+}
+```
+
+Run:
+```bash
+python -m tts_helper histoire.txt --config config.json --output histoire.mp3 -v
+```
+
+**4. Japanese audiobook with Kokoro TTS:**
+Edit `config.json`:
+```json
+{
+  "tts_engine": "kokoro",
+  "segmenter": {
+    "language": "ja",
+    "max_chars": 200
+  },
+  "tts": {
+    "language": "ja",
+    "voice": "jf_alpha",
+    "speed": 1.0
+  },
+  "stitcher": {
+    "output_format": "mp3",
+    "silence_duration_ms": 500
+  },
+  "skip_normalization": true
+}
+```
+
+Run:
+```bash
+python -m tts_helper japanese_story.txt --config config.json --output japanese_audiobook.mp3 -v
+```
+
+**5. Debug with verbose output and keep chunks:**
+```bash
+python -m tts_helper input.txt --output output.mp3 --verbose --keep-chunks
+```
+
+This will:
+- Show detailed progress for each step
+- Keep individual chunk files in `output_chunks/` directory
+- Useful for debugging or manual inspection
+
 ## Overview
 
 TTS Helper is a Python library designed to prepare text for text-to-speech (TTS) processing, particularly for audiobook production. It intelligently segments raw text into clean, natural chunks that respect sentence boundaries while staying within configurable character limits.
@@ -290,7 +531,7 @@ If you want to create M4B audiobooks with chapter markers and metadata from ISBN
 
 **Note:** M4B creation only works in directory mode where you're processing multiple chapter files. For single files, the tool creates a standard audio file without M4B packaging.
 
-## Quick Start
+## Programmatic Interface
 
 ### Basic Usage - Text Segmentation
 
@@ -646,215 +887,6 @@ stitcher.stitch(chunk_files, "complete_audiobook.mp3")
 print("Audiobook complete: complete_audiobook.mp3")
 ```
 
-## Command Line Interface
-
-TTS Helper includes a powerful CLI for converting text files to audiobooks with a single command.
-
-### Quick Start
-
-```bash
-# Generate a default configuration file
-python -m tts_helper --create-config
-
-# Convert text file to audiobook with defaults
-python -m tts_helper input.txt --output audiobook.mp3
-
-# Convert with custom configuration
-python -m tts_helper input.txt --config config.json --output audiobook.mp3
-
-# Verbose output to see progress
-python -m tts_helper input.txt --output audiobook.mp3 --verbose
-
-# Keep intermediate audio chunks
-python -m tts_helper input.txt --output audiobook.mp3 --keep-chunks
-
-# Process directory of chapters to M4B audiobook (directory mode only)
-python -m tts_helper chapters_dir/ --output audiobooks/ --isbn 978-0-441-00731-2
-```
-
-### Configuration File Format
-
-The CLI uses a JSON configuration file to control all pipeline components. Generate a default configuration with:
-
-```bash
-python -m tts_helper --create-config
-```
-
-This creates `config.json` with the following structure:
-
-```json
-{
-  "tts_engine": "kokoro",
-  "normalizer": {
-    "language": "en",
-    "input_case": "cased",
-    "verbose": false
-  },
-  "segmenter": {
-    "language": "en",
-    "strategy": "char_count",
-    "max_chars": 300,
-    "sentences_per_chunk": 3
-  },
-  "tts": {
-    "language": "english",
-    "voice": "af_sarah",
-    "speed": 1.0,
-    "verbose": false
-  },
-  "stitcher": {
-    "silence_duration_ms": 750,
-    "crossfade_duration_ms": 0,
-    "output_format": "mp3",
-    "export_bitrate": "192k"
-  },
-  "m4b_tool_args": {
-    "audio-bitrate": "64k",
-    "use-filenames-as-chapters": "",
-    "jobs": "4"
-  },
-  "skip_normalization": false
-}
-```
-
-**Configuration Sections:**
-
-- **tts_engine**: Currently uses `"kokoro"` TTS engine
-  - Kokoro: Fast, lightweight, multi-language support, works well on CPU
-
-- **normalizer**: Controls text normalization (numbers, dates, currency → spoken form)
-  - See `NemoNormalizerConfig` for available options
-
-- **segmenter**: Controls how text is chunked for TTS
-  - See `SpacySegmenterConfig` for available options
-
-- **tts**: Controls Kokoro speech synthesis settings
-  - See `KokoroTTSConfig` for available options
-
-- **stitcher**: Controls how audio chunks are combined
-  - See `PydubStitcherConfig` for available options
-
-- **m4b_tool_args**: Arguments passed to m4b-tool for M4B creation (optional, only used with `--isbn`)
-  - Keys are argument names without `--` prefix
-  - Values are argument values, or empty string `""` for flags without values
-  - Common arguments:
-    - `"audio-bitrate"`: Audio bitrate for M4B (e.g., `"64k"`, `"128k"`)
-    - `"use-filenames-as-chapters"`: Use chunk filenames as chapter names (empty string value)
-    - `"jobs"`: Number of parallel jobs (e.g., `"4"`)
-  - Book metadata (title, author, year) are automatically fetched from ISBN
-
-- **skip_normalization**: Set to `true` to skip the normalization step
-
-### CLI Options
-
-```
-usage: python -m tts_helper [-h] [-o OUTPUT] [-c CONFIG] [--create-config]
-                            [--keep-chunks] [-v] [input]
-
-positional arguments:
-  input                 Input text file to convert to audiobook
-
-options:
-  -h, --help            show this help message and exit
-  -o, --output OUTPUT   Output audiobook file (e.g., audiobook.mp3)
-  -c, --config CONFIG   JSON configuration file for pipeline components
-  --create-config       Create a default configuration file (config.json) and exit
-  --keep-chunks         Keep individual audio chunk files
-  -v, --verbose         Print verbose progress information
-```
-
-### Example Workflows
-
-**1. Basic audiobook with defaults:**
-```bash
-python -m tts_helper story.txt --output story.mp3
-```
-
-**2. Custom voice and format:**
-Edit `config.json`:
-```json
-{
-  "tts": {
-    "language": "english",
-    "voice": "leo",
-    "use_gpu": true
-  },
-  "stitcher": {
-    "output_format": "wav",
-    "silence_duration_ms": 1000
-  }
-}
-```
-
-Run:
-```bash
-python -m tts_helper story.txt --config config.json --output story.wav
-```
-
-**3. French audiobook with crossfade:**
-Edit `config.json`:
-```json
-{
-  "normalizer": {
-    "language": "fr"
-  },
-  "segmenter": {
-    "language": "fr"
-  },
-  "tts": {
-    "language": "french",
-    "voice": "pierre"
-  },
-  "stitcher": {
-    "crossfade_duration_ms": 100,
-    "silence_duration_ms": 0,
-    "output_format": "mp3"
-  }
-}
-```
-
-Run:
-```bash
-python -m tts_helper histoire.txt --config config.json --output histoire.mp3 -v
-```
-
-**4. Japanese audiobook with Kokoro TTS:**
-Edit `config.json`:
-```json
-{
-  "tts_engine": "kokoro",
-  "segmenter": {
-    "language": "ja",
-    "max_chars": 200
-  },
-  "tts": {
-    "language": "ja",
-    "voice": "jf_alpha",
-    "speed": 1.0
-  },
-  "stitcher": {
-    "output_format": "mp3",
-    "silence_duration_ms": 500
-  },
-  "skip_normalization": true
-}
-```
-
-Run:
-```bash
-python -m tts_helper japanese_story.txt --config config.json --output japanese_audiobook.mp3 -v
-```
-
-**5. Debug with verbose output and keep chunks:**
-```bash
-python -m tts_helper input.txt --output output.mp3 --verbose --keep-chunks
-```
-
-This will:
-- Show detailed progress for each step
-- Keep individual chunk files in `output_chunks/` directory
-- Useful for debugging or manual inspection
-
 ## Configuration Options
 
 ### SpacySegmenterConfig
@@ -1021,6 +1053,63 @@ pytest --cov=tts_helper --cov-report=html
 
 # Run specific test file
 pytest tests/test_spacy_segmenter.py -v
+```
+
+### Code Formatting and Linting
+
+The project uses **Black** for code formatting, **Ruff** for linting, and **mypy** for type checking. All commands are available via the Makefile:
+
+```bash
+# Format code with black and isort
+make format
+
+# Run linting (ruff + mypy)
+make lint
+
+# Run tests
+make test
+
+# Check formatting, linting, and tests (CI workflow)
+make check
+
+# Format, lint, and test in one command
+make all
+
+# Clean build artifacts
+make clean
+
+# View all available commands
+make help
+```
+
+**Using Pre-commit Hooks (Optional):**
+
+Pre-commit hooks automatically run formatting and linting before each commit:
+
+```bash
+# Install pre-commit hooks
+pip install pre-commit
+pre-commit install
+
+# Run hooks manually on all files
+pre-commit run --all-files
+```
+
+**Manual Commands:**
+
+If you prefer to run tools directly without make:
+
+```bash
+# Format code
+black tts_helper/ tests/ book_extractor/
+isort tts_helper/ tests/ book_extractor/
+
+# Lint code
+ruff check tts_helper/ tests/ book_extractor/
+mypy tts_helper/
+
+# Run tests
+pytest tests/ -v
 ```
 
 ## Use Cases

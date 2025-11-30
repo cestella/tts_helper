@@ -4,7 +4,6 @@ import json
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
 
 import pytest
 
@@ -25,20 +24,20 @@ class MockNormalizer(Normalizer):
     def normalize(self, text: str) -> str:
         """Simple normalization for testing."""
         result = text
-        if self.config.uppercase:
+        if self.config.uppercase:  # type: ignore[attr-defined]
             result = result.upper()
-        if self.config.prefix:
-            result = f"{self.config.prefix}{result}"
+        if self.config.prefix:  # type: ignore[attr-defined]
+            result = f"{self.config.prefix}{result}"  # type: ignore[attr-defined]
         return result
 
     def __repr__(self) -> str:
-        return f"MockNormalizer(uppercase={self.config.uppercase})"
+        return f"MockNormalizer(uppercase={self.config.uppercase})"  # type: ignore[attr-defined]
 
 
 class TestNormalizerConfig:
     """Tests for NormalizerConfig base class."""
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         """Test converting config to dictionary."""
         config = MockNormalizerConfig(uppercase=True, prefix="TEST:")
         config_dict = config.to_dict()
@@ -47,7 +46,7 @@ class TestNormalizerConfig:
         assert config_dict["uppercase"] is True
         assert config_dict["prefix"] == "TEST:"
 
-    def test_from_dict(self):
+    def test_from_dict(self) -> None:
         """Test creating config from dictionary."""
         config_dict = {"uppercase": True, "prefix": "TEST:"}
         config = MockNormalizerConfig.from_dict(config_dict)
@@ -56,7 +55,7 @@ class TestNormalizerConfig:
         assert config.uppercase is True
         assert config.prefix == "TEST:"
 
-    def test_to_json(self):
+    def test_to_json(self) -> None:
         """Test saving config to JSON file."""
         config = MockNormalizerConfig(uppercase=True, prefix="TEST:")
 
@@ -72,7 +71,7 @@ class TestNormalizerConfig:
             assert loaded["uppercase"] is True
             assert loaded["prefix"] == "TEST:"
 
-    def test_from_json(self):
+    def test_from_json(self) -> None:
         """Test loading config from JSON file."""
         config_dict = {"uppercase": True, "prefix": "TEST:"}
 
@@ -88,12 +87,12 @@ class TestNormalizerConfig:
             assert config.uppercase is True
             assert config.prefix == "TEST:"
 
-    def test_from_json_file_not_found(self):
+    def test_from_json_file_not_found(self) -> None:
         """Test loading from non-existent JSON file."""
         with pytest.raises(FileNotFoundError):
             MockNormalizerConfig.from_json("/nonexistent/path/config.json")
 
-    def test_json_roundtrip(self):
+    def test_json_roundtrip(self) -> None:
         """Test that config survives JSON save/load cycle."""
         original = MockNormalizerConfig(uppercase=False, prefix="HELLO:")
 
@@ -105,7 +104,7 @@ class TestNormalizerConfig:
             assert loaded.uppercase == original.uppercase
             assert loaded.prefix == original.prefix
 
-    def test_to_json_creates_parent_directories(self):
+    def test_to_json_creates_parent_directories(self) -> None:
         """Test that to_json creates parent directories if needed."""
         config = MockNormalizerConfig()
 
@@ -120,15 +119,15 @@ class TestNormalizerConfig:
 class TestNormalizer:
     """Tests for Normalizer base class."""
 
-    def test_init_with_config(self):
+    def test_init_with_config(self) -> None:
         """Test normalizer initialization with config."""
         config = MockNormalizerConfig(uppercase=True)
         normalizer = MockNormalizer(config)
 
         assert normalizer.config == config
-        assert normalizer.config.uppercase is True
+        assert normalizer.config.uppercase is True  # type: ignore[attr-defined]
 
-    def test_normalize(self):
+    def test_normalize(self) -> None:
         """Test basic normalization."""
         config = MockNormalizerConfig(uppercase=True)
         normalizer = MockNormalizer(config)
@@ -138,7 +137,7 @@ class TestNormalizer:
 
         assert normalized == "HELLO WORLD"
 
-    def test_normalize_with_prefix(self):
+    def test_normalize_with_prefix(self) -> None:
         """Test normalization with prefix."""
         config = MockNormalizerConfig(prefix=">>>")
         normalizer = MockNormalizer(config)
@@ -148,7 +147,7 @@ class TestNormalizer:
 
         assert normalized == ">>>test"
 
-    def test_normalize_batch(self):
+    def test_normalize_batch(self) -> None:
         """Test batch normalization."""
         config = MockNormalizerConfig(uppercase=True)
         normalizer = MockNormalizer(config)
@@ -160,7 +159,7 @@ class TestNormalizer:
         assert results[0] == "HELLO"
         assert results[1] == "WORLD"
 
-    def test_repr(self):
+    def test_repr(self) -> None:
         """Test string representation."""
         config = MockNormalizerConfig(uppercase=True)
         normalizer = MockNormalizer(config)

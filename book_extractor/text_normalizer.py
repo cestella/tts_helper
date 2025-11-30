@@ -1,33 +1,35 @@
 """Utilities for cleaning and normalizing text for TTS pipelines."""
 
 import re
-from typing import Optional
 
 try:
     import spacy
 except ImportError:
-    spacy = None
+    spacy = None  # type: ignore[assignment]
 
 
 def add_periods_to_headings(html_content: str) -> str:
     """Add periods to heading tags that don't already end with punctuation."""
-    def add_period_to_heading(match):
+
+    def add_period_to_heading(match: re.Match[str]) -> str:
         level = match.group(1)
         attrs = match.group(2)
         text = match.group(3).strip()
 
         # Only add period if heading doesn't already end with punctuation
-        if text and not re.search(r'[.!?]$', text):
-            text = text + '.'
+        if text and not re.search(r"[.!?]$", text):
+            text = text + "."
 
-        return f'<h{level}{attrs}>{text}</h{level}>'
+        return f"<h{level}{attrs}>{text}</h{level}>"
 
     # Match h1-h6 tags and add periods to their content
-    pattern = r'<h([1-6])([^>]*)>(.*?)</h\1>'
-    return re.sub(pattern, add_period_to_heading, html_content, flags=re.IGNORECASE | re.DOTALL)
+    pattern = r"<h([1-6])([^>]*)>(.*?)</h\1>"
+    return re.sub(
+        pattern, add_period_to_heading, html_content, flags=re.IGNORECASE | re.DOTALL
+    )
 
 
-def _normalize_language_code(language_hint: Optional[str]) -> str:
+def _normalize_language_code(language_hint: str | None) -> str:
     """Convert language hints like 'en-US' to spaCy-compatible codes."""
     if not language_hint:
         return "en"
@@ -35,7 +37,7 @@ def _normalize_language_code(language_hint: Optional[str]) -> str:
     return parts[0].strip().lower() or "en"
 
 
-def normalize_text_for_tts(text: str, language_hint: Optional[str] = None) -> str:
+def normalize_text_for_tts(text: str, language_hint: str | None = None) -> str:
     """
     Normalize text spacing and sentence boundaries to be TTS-friendly.
 
@@ -67,9 +69,7 @@ def normalize_text_for_tts(text: str, language_hint: Optional[str] = None) -> st
         for para in paragraphs:
             doc = nlp(para)
             sentences = [
-                " ".join(sent.text.split())
-                for sent in doc.sents
-                if sent.text.strip()
+                " ".join(sent.text.split()) for sent in doc.sents if sent.text.strip()
             ]
             if sentences:
                 normalized_paragraphs.append(" ".join(sentences))

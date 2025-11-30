@@ -4,7 +4,6 @@ import json
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List
 
 import pytest
 
@@ -22,18 +21,18 @@ class MockSegmenterConfig(SegmenterConfig):
 class MockSegmenter(Segmenter):
     """Mock segmenter for testing base class."""
 
-    def segment(self, text: str) -> List[str]:
+    def segment(self, text: str) -> list[str]:
         """Simple split by newlines for testing."""
         return [line.strip() for line in text.split("\n") if line.strip()]
 
     def __repr__(self) -> str:
-        return f"MockSegmenter(param1={self.config.param1})"
+        return f"MockSegmenter(param1={self.config.param1})"  # type: ignore[attr-defined]
 
 
 class TestSegmenterConfig:
     """Tests for SegmenterConfig base class."""
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         """Test converting config to dictionary."""
         config = MockSegmenterConfig(param1="test", param2=100)
         config_dict = config.to_dict()
@@ -42,7 +41,7 @@ class TestSegmenterConfig:
         assert config_dict["param1"] == "test"
         assert config_dict["param2"] == 100
 
-    def test_from_dict(self):
+    def test_from_dict(self) -> None:
         """Test creating config from dictionary."""
         config_dict = {"param1": "test", "param2": 100}
         config = MockSegmenterConfig.from_dict(config_dict)
@@ -51,7 +50,7 @@ class TestSegmenterConfig:
         assert config.param1 == "test"
         assert config.param2 == 100
 
-    def test_to_json(self):
+    def test_to_json(self) -> None:
         """Test saving config to JSON file."""
         config = MockSegmenterConfig(param1="test", param2=100)
 
@@ -67,7 +66,7 @@ class TestSegmenterConfig:
             assert loaded["param1"] == "test"
             assert loaded["param2"] == 100
 
-    def test_from_json(self):
+    def test_from_json(self) -> None:
         """Test loading config from JSON file."""
         config_dict = {"param1": "test", "param2": 100}
 
@@ -83,12 +82,12 @@ class TestSegmenterConfig:
             assert config.param1 == "test"
             assert config.param2 == 100
 
-    def test_from_json_file_not_found(self):
+    def test_from_json_file_not_found(self) -> None:
         """Test loading from non-existent JSON file."""
         with pytest.raises(FileNotFoundError):
             MockSegmenterConfig.from_json("/nonexistent/path/config.json")
 
-    def test_json_roundtrip(self):
+    def test_json_roundtrip(self) -> None:
         """Test that config survives JSON save/load cycle."""
         original = MockSegmenterConfig(param1="roundtrip", param2=999)
 
@@ -100,7 +99,7 @@ class TestSegmenterConfig:
             assert loaded.param1 == original.param1
             assert loaded.param2 == original.param2
 
-    def test_to_json_creates_parent_directories(self):
+    def test_to_json_creates_parent_directories(self) -> None:
         """Test that to_json creates parent directories if needed."""
         config = MockSegmenterConfig()
 
@@ -115,15 +114,15 @@ class TestSegmenterConfig:
 class TestSegmenter:
     """Tests for Segmenter base class."""
 
-    def test_init_with_config(self):
+    def test_init_with_config(self) -> None:
         """Test segmenter initialization with config."""
         config = MockSegmenterConfig(param1="test")
         segmenter = MockSegmenter(config)
 
         assert segmenter.config == config
-        assert segmenter.config.param1 == "test"
+        assert segmenter.config.param1 == "test"  # type: ignore[attr-defined]
 
-    def test_segment(self):
+    def test_segment(self) -> None:
         """Test basic segmentation."""
         config = MockSegmenterConfig()
         segmenter = MockSegmenter(config)
@@ -133,7 +132,7 @@ class TestSegmenter:
 
         assert chunks == ["Line 1", "Line 2", "Line 3"]
 
-    def test_segment_batch(self):
+    def test_segment_batch(self) -> None:
         """Test batch segmentation."""
         config = MockSegmenterConfig()
         segmenter = MockSegmenter(config)
@@ -145,7 +144,7 @@ class TestSegmenter:
         assert results[0] == ["Text 1", "Line 2"]
         assert results[1] == ["Text 2", "Line 4"]
 
-    def test_repr(self):
+    def test_repr(self) -> None:
         """Test string representation."""
         config = MockSegmenterConfig(param1="test_repr")
         segmenter = MockSegmenter(config)

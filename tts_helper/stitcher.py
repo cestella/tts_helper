@@ -4,7 +4,6 @@ import json
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import List, Tuple, Union
 
 import numpy as np
 
@@ -36,7 +35,7 @@ class StitcherConfig:
         """
         return cls(**config_dict)
 
-    def to_json(self, path: Union[str, Path]) -> None:
+    def to_json(self, path: str | Path) -> None:
         """Save configuration to JSON file.
 
         Args:
@@ -49,7 +48,7 @@ class StitcherConfig:
             json.dump(self.to_dict(), f, indent=2)
 
     @classmethod
-    def from_json(cls, path: Union[str, Path]) -> "StitcherConfig":
+    def from_json(cls, path: str | Path) -> "StitcherConfig":
         """Load configuration from JSON file.
 
         Args:
@@ -81,9 +80,7 @@ class Stitcher(ABC):
         self.config = config
 
     @abstractmethod
-    def stitch(
-        self, audio_files: List[Union[str, Path]], output_path: Union[str, Path]
-    ) -> None:
+    def stitch(self, audio_files: list[str | Path], output_path: str | Path) -> None:
         """Stitch audio files together.
 
         Args:
@@ -95,8 +92,8 @@ class Stitcher(ABC):
     @abstractmethod
     def stitch_from_arrays(
         self,
-        audio_arrays: List[Tuple[int, np.ndarray]],
-        output_path: Union[str, Path],
+        audio_arrays: list[tuple[int, np.ndarray]],
+        output_path: str | Path,
     ) -> None:
         """Stitch audio arrays together.
 

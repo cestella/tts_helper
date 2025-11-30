@@ -3,16 +3,16 @@
 import re
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import List, Optional
 
-import markdown as md_renderer
+import markdown as md_renderer  # type: ignore[import-untyped]
 from bs4 import BeautifulSoup
+
 try:
     import spacy
 except ImportError:
-    spacy = None
+    spacy = None  # type: ignore[assignment]
 
-from .text_normalizer import normalize_text_for_tts, add_periods_to_headings
+from .text_normalizer import add_periods_to_headings, normalize_text_for_tts
 
 
 def safe_filename(name: str, default: str = "chapter") -> str:
@@ -25,10 +25,10 @@ def safe_filename(name: str, default: str = "chapter") -> str:
 def extract_markdown_chapters(
     md_path: Path,
     output_dir: Path,
-    chapter_pattern: Optional[str] = None,
+    chapter_pattern: str | None = None,
     verbose: bool = False,
     language_hint: str = "en",
-) -> List[Path]:
+) -> list[Path]:
     """Extract chapters from a markdown file using a regex boundary pattern.
 
     Args:
@@ -84,8 +84,8 @@ def extract_markdown_chapters(
         # No matches; treat entire document as a single chapter.
         chapters.append((md_path.stem, text))
 
-    extracted_files: List[Path] = []
-    seen_titles = {}
+    extracted_files: list[Path] = []
+    seen_titles: dict[str, int] = {}
 
     for idx, (title, content) in enumerate(chapters, 1):
         rendered = _render_markdown_to_text(content)
@@ -149,7 +149,7 @@ def _render_markdown_to_text(md: str) -> str:
 class _HTMLTextExtractor(HTMLParser):
     """Simple HTML-to-text extractor."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
         self.chunks: list[str] = []
 
@@ -186,7 +186,9 @@ def _sentences_per_line(text: str, language_hint: str = "en") -> str:
             nlp.add_pipe("sentencizer")
 
         doc = nlp(text)
-        sentences = [" ".join(sent.text.split()) for sent in doc.sents if sent.text.strip()]
+        sentences = [
+            " ".join(sent.text.split()) for sent in doc.sents if sent.text.strip()
+        ]
         return "\n".join(sentences)
     except Exception:
         sentences = re.split(r"(?<=[.!?])\s+", text.strip())

@@ -6,17 +6,17 @@ This module defines the abstract base classes for TTS engines and their configur
 
 import json
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Type, TypeVar, Optional
-import numpy as np
+from typing import Any, TypeVar
 
+import numpy as np
 
 T = TypeVar("T", bound="TTSConfig")
 
 
 @dataclass
-class TTSConfig(ABC):
+class TTSConfig:
     """
     Base configuration class for TTS engines.
 
@@ -25,7 +25,7 @@ class TTSConfig(ABC):
     """
 
     @classmethod
-    def from_dict(cls: Type[T], config_dict: Dict[str, Any]) -> T:
+    def from_dict(cls: type[T], config_dict: dict[str, Any]) -> T:
         """
         Create a configuration instance from a dictionary.
 
@@ -38,7 +38,7 @@ class TTSConfig(ABC):
         return cls(**config_dict)
 
     @classmethod
-    def from_json(cls: Type[T], json_path: str | Path) -> T:
+    def from_json(cls: type[T], json_path: str | Path) -> T:
         """
         Load configuration from a JSON file.
 
@@ -57,7 +57,7 @@ class TTSConfig(ABC):
             config_dict = json.load(f)
         return cls.from_dict(config_dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert configuration to a dictionary.
 
@@ -97,7 +97,7 @@ class TTS(ABC):
         self.config = config
 
     @abstractmethod
-    def synthesize(self, text: str) -> Tuple[int, np.ndarray]:
+    def synthesize(self, text: str) -> tuple[int, np.ndarray]:
         """
         Synthesize speech from text.
 
@@ -111,7 +111,7 @@ class TTS(ABC):
         """
         pass
 
-    def synthesize_batch(self, texts: List[str]) -> List[Tuple[int, np.ndarray]]:
+    def synthesize_batch(self, texts: list[str]) -> list[tuple[int, np.ndarray]]:
         """
         Synthesize speech from multiple texts.
 
