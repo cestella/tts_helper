@@ -8,7 +8,7 @@ max_chars, even with pathological inputs like long vocabulary lists.
 from tts_helper.spacy_segmenter import SpacySegmenter, SpacySegmenterConfig
 
 
-def test_segmenter_guarantee_with_vocabulary_list():
+def test_segmenter_guarantee_with_vocabulary_list() -> None:
     """Test that segmenter handles long vocabulary lists without exceeding max_chars."""
 
     # This is the type of text that was causing 637-char chunks
@@ -58,26 +58,26 @@ l'occhio eye
         print("\n❌ FAILED: Found oversized chunks!")
         for chunk in oversized:
             print(f"  {len(chunk)} chars: {chunk[:100]}...")
-        assert False, f"Found {len(oversized)} chunks exceeding {config.max_chars} chars"
+        raise AssertionError(
+            f"Found {len(oversized)} chunks exceeding {config.max_chars} chars"
+        )
     else:
         print(f"\n✅ SUCCESS: All {len(chunks)} chunks are ≤{config.max_chars} chars")
 
 
-def test_segmenter_guarantee_with_extreme_text():
+def test_segmenter_guarantee_with_extreme_text() -> None:
     """Test with various extreme cases."""
 
     test_cases = [
         # Very long word (should be hard-cut)
         "supercalifragilisticexpialidocious" * 20,
-
         # No spaces (should be hard-cut)
         "a" * 500,
-
         # Comma-separated list
         "apple, banana, cherry, date, elderberry, fig, grape, honeydew, " * 10,
-
         # Normal sentences that happen to be long
-        "This is a perfectly normal sentence that just happens to be quite long because it contains many words and clauses that make it exceed the character limit. " * 3,
+        "This is a perfectly normal sentence that just happens to be quite long because it contains many words and clauses that make it exceed the character limit. "
+        * 3,
     ]
 
     config = SpacySegmenterConfig(

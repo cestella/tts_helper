@@ -2,23 +2,22 @@
 
 import re
 from pathlib import Path
-from typing import List, Optional
 
 try:
     import spacy
 except ImportError:
-    spacy = None
+    spacy = None  # type: ignore[assignment]
 
 try:
-    import ebooklib
-    from ebooklib import epub
+    import ebooklib  # type: ignore[import-untyped]
     import trafilatura
+    from ebooklib import epub
 except ImportError:
     ebooklib = None
     epub = None
-    trafilatura = None
+    trafilatura = None  # type: ignore[assignment]
 
-from .text_normalizer import normalize_text_for_tts, add_periods_to_headings
+from .text_normalizer import add_periods_to_headings, normalize_text_for_tts
 
 
 def safe_filename(name: str, default: str = "chapter") -> str:
@@ -38,7 +37,7 @@ def safe_filename(name: str, default: str = "chapter") -> str:
     return slug or default
 
 
-def _normalize_language_code(language_hint: Optional[str]) -> str:
+def _normalize_language_code(language_hint: str | None) -> str:
     """Deprecated: moved to text_normalizer.normalize_text_for_tts."""
     # Kept for backward compatibility if other modules import it directly
     if not language_hint:
@@ -47,7 +46,7 @@ def _normalize_language_code(language_hint: Optional[str]) -> str:
     return parts[0].strip().lower() or "en"
 
 
-def _extract_heading_title(html_content: str) -> Optional[str]:
+def _extract_heading_title(html_content: str) -> str | None:
     """Fallback heading extraction when metadata has no title."""
     match = re.search(
         r"<h([1-3])[^>]*>(.*?)</h\1>",
@@ -61,12 +60,14 @@ def _extract_heading_title(html_content: str) -> Optional[str]:
     return heading_text or None
 
 
-def _normalize_text_for_tts(text: str, language_hint: Optional[str] = None) -> str:
+def _normalize_text_for_tts(text: str, language_hint: str | None = None) -> str:
     """Deprecated shim to maintain compatibility."""
     return normalize_text_for_tts(text, language_hint=language_hint)
 
 
-def extract_text_from_html(html_content: str, language_hint: str = "en") -> tuple[Optional[str], str]:
+def extract_text_from_html(
+    html_content: str, language_hint: str = "en"
+) -> tuple[str | None, str]:
     """Extract title and text from HTML content using trafilatura."""
     if trafilatura is None:
         raise ImportError(
@@ -106,7 +107,7 @@ def extract_epub_chapters(
     output_dir: Path,
     verbose: bool = False,
     language_hint: str = "en",
-) -> List[Path]:
+) -> list[Path]:
     """Extract chapters from an EPUB file with lexicographic naming.
 
     Chapters are saved as text files with names like:
@@ -154,7 +155,7 @@ def extract_epub_chapters(
 
     # Track extracted files and titles for duplicate detection
     extracted_files = []
-    seen_titles = {}
+    seen_titles: dict[str, int] = {}
 
     # Get all document items (chapters)
     items = list(book.get_items_of_type(ebooklib.ITEM_DOCUMENT))
@@ -172,7 +173,9 @@ def extract_epub_chapters(
                 continue
 
             # Extract title and text
-            title, text = extract_text_from_html(content.decode("utf-8"), language_hint=language_hint)
+            title, text = extract_text_from_html(
+                content.decode("utf-8"), language_hint=language_hint
+            )
 
             # Skip if no meaningful text
             if not text or len(text.strip()) < 50:
@@ -238,7 +241,9 @@ def _sentences_per_line(text: str) -> str:
             nlp.add_pipe("sentencizer")
 
         doc = nlp(text)
-        sentences = [" ".join(sent.text.split()) for sent in doc.sents if sent.text.strip()]
+        sentences = [
+            " ".join(sent.text.split()) for sent in doc.sents if sent.text.strip()
+        ]
         return "\n".join(sentences)
     except Exception:
         sentences = re.split(r"(?<=[.!?])\s+", text.strip())

@@ -6,16 +6,15 @@ This module defines the abstract base classes for text segmenters and their conf
 
 import json
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Type, TypeVar
-
+from typing import Any, TypeVar
 
 T = TypeVar("T", bound="SegmenterConfig")
 
 
 @dataclass
-class SegmenterConfig(ABC):
+class SegmenterConfig:
     """
     Base configuration class for text segmenters.
 
@@ -24,7 +23,7 @@ class SegmenterConfig(ABC):
     """
 
     @classmethod
-    def from_dict(cls: Type[T], config_dict: Dict[str, Any]) -> T:
+    def from_dict(cls: type[T], config_dict: dict[str, Any]) -> T:
         """
         Create a configuration instance from a dictionary.
 
@@ -37,7 +36,7 @@ class SegmenterConfig(ABC):
         return cls(**config_dict)
 
     @classmethod
-    def from_json(cls: Type[T], json_path: str | Path) -> T:
+    def from_json(cls: type[T], json_path: str | Path) -> T:
         """
         Load configuration from a JSON file.
 
@@ -56,7 +55,7 @@ class SegmenterConfig(ABC):
             config_dict = json.load(f)
         return cls.from_dict(config_dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """
         Convert configuration to a dictionary.
 
@@ -97,7 +96,7 @@ class Segmenter(ABC):
         self.config = config
 
     @abstractmethod
-    def segment(self, text: str) -> List[str]:
+    def segment(self, text: str) -> list[str]:
         """
         Segment text into chunks.
 
@@ -109,7 +108,7 @@ class Segmenter(ABC):
         """
         pass
 
-    def segment_batch(self, texts: List[str]) -> List[List[str]]:
+    def segment_batch(self, texts: list[str]) -> list[list[str]]:
         """
         Segment multiple texts into chunks.
 

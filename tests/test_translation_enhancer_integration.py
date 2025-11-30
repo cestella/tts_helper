@@ -26,7 +26,7 @@ class TestTranslationEnhancerIntegration:
     """Integration tests with real NLLB model."""
 
     @pytest.mark.slow
-    def test_real_translation_english_to_italian(self):
+    def test_real_translation_english_to_italian(self) -> None:
         """Test real translation from English to Italian using NLLB.
 
         This test will download the NLLB model on first run (~1.2GB).
@@ -73,10 +73,12 @@ class TestTranslationEnhancerIntegration:
         # Note: Exact translation may vary, so we check for common Italian words/patterns
         italian_words = ["ciao", "buon", "come", "oggi", "mondo", "stai"]
         has_italian = any(word in translation.lower() for word in italian_words)
-        assert has_italian, f"Translation doesn't seem to contain Italian words: {translation}"
+        assert (
+            has_italian
+        ), f"Translation doesn't seem to contain Italian words: {translation}"
 
     @pytest.mark.slow
-    def test_real_translation_english_to_spanish(self):
+    def test_real_translation_english_to_spanish(self) -> None:
         """Test real translation from English to Spanish using NLLB."""
         config = TranslationEnhancerConfig(
             probability=1.0,
@@ -104,10 +106,12 @@ class TestTranslationEnhancerIntegration:
         # Check for Spanish words
         spanish_words = ["buenos", "mañana", "tiempo", "hoy", "buen"]
         has_spanish = any(word in translation.lower() for word in spanish_words)
-        assert has_spanish, f"Translation doesn't seem to contain Spanish words: {translation}"
+        assert (
+            has_spanish
+        ), f"Translation doesn't seem to contain Spanish words: {translation}"
 
     @pytest.mark.slow
-    def test_real_translation_with_voice_override(self):
+    def test_real_translation_with_voice_override(self) -> None:
         """Test that voice override is set correctly on translated chunks."""
         config = TranslationEnhancerConfig(
             probability=1.0,
@@ -140,7 +144,7 @@ class TestTranslationEnhancerIntegration:
         assert enhanced[0].voice is None
 
     @pytest.mark.slow
-    def test_real_translation_probability(self):
+    def test_real_translation_probability(self) -> None:
         """Test that probability affects which chunks get translated."""
         config = TranslationEnhancerConfig(
             probability=0.0,  # Never translate

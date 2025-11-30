@@ -1,11 +1,12 @@
 """Tests for pydub stitcher."""
 
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
 
 import numpy as np
 import pytest
-from scipy.io.wavfile import write
+from scipy.io.wavfile import write  # type: ignore[import-untyped]
 
 from tts_helper.pydub_stitcher import PydubStitcher, PydubStitcherConfig
 
@@ -13,7 +14,7 @@ from tts_helper.pydub_stitcher import PydubStitcher, PydubStitcherConfig
 class TestPydubStitcherConfig:
     """Tests for PydubStitcherConfig."""
 
-    def test_default_config(self):
+    def test_default_config(self) -> None:
         """Test default configuration values."""
         config = PydubStitcherConfig()
 
@@ -23,7 +24,7 @@ class TestPydubStitcherConfig:
         assert config.export_bitrate == "192k"
         assert config.sample_rate is None
 
-    def test_custom_config(self):
+    def test_custom_config(self) -> None:
         """Test custom configuration values."""
         config = PydubStitcherConfig(
             silence_duration_ms=1000,
@@ -39,32 +40,32 @@ class TestPydubStitcherConfig:
         assert config.export_bitrate == "256k"
         assert config.sample_rate == 44100
 
-    def test_negative_silence_raises_error(self):
+    def test_negative_silence_raises_error(self) -> None:
         """Test that negative silence duration raises ValueError."""
         with pytest.raises(ValueError, match="silence_duration_ms must be"):
             PydubStitcherConfig(silence_duration_ms=-100)
 
-    def test_negative_crossfade_raises_error(self):
+    def test_negative_crossfade_raises_error(self) -> None:
         """Test that negative crossfade duration raises ValueError."""
         with pytest.raises(ValueError, match="crossfade_duration_ms must be"):
             PydubStitcherConfig(crossfade_duration_ms=-50)
 
-    def test_invalid_output_format_raises_error(self):
+    def test_invalid_output_format_raises_error(self) -> None:
         """Test that invalid output format raises ValueError."""
         with pytest.raises(ValueError, match="output_format must be"):
-            PydubStitcherConfig(output_format="invalid")
+            PydubStitcherConfig(output_format="invalid")  # type: ignore[arg-type]
 
-    def test_zero_sample_rate_raises_error(self):
+    def test_zero_sample_rate_raises_error(self) -> None:
         """Test that zero sample rate raises ValueError."""
         with pytest.raises(ValueError, match="sample_rate must be"):
             PydubStitcherConfig(sample_rate=0)
 
-    def test_negative_sample_rate_raises_error(self):
+    def test_negative_sample_rate_raises_error(self) -> None:
         """Test that negative sample rate raises ValueError."""
         with pytest.raises(ValueError, match="sample_rate must be"):
             PydubStitcherConfig(sample_rate=-22050)
 
-    def test_config_serialization(self):
+    def test_config_serialization(self) -> None:
         """Test config can be serialized to/from JSON."""
         config = PydubStitcherConfig(
             silence_duration_ms=750,
@@ -78,15 +79,15 @@ class TestPydubStitcherConfig:
 
             loaded = PydubStitcherConfig.from_json(json_path)
 
-            assert loaded.silence_duration_ms == config.silence_duration_ms
-            assert loaded.crossfade_duration_ms == config.crossfade_duration_ms
-            assert loaded.output_format == config.output_format
+            assert loaded.silence_duration_ms == config.silence_duration_ms  # type: ignore[attr-defined]
+            assert loaded.crossfade_duration_ms == config.crossfade_duration_ms  # type: ignore[attr-defined]
+            assert loaded.output_format == config.output_format  # type: ignore[attr-defined]
 
 
 class TestPydubStitcher:
     """Tests for PydubStitcher."""
 
-    def test_init(self):
+    def test_init(self) -> None:
         """Test stitcher initialization."""
         try:
             config = PydubStitcherConfig()
@@ -96,12 +97,10 @@ class TestPydubStitcher:
         except ImportError:
             pytest.skip("pydub not installed")
 
-    def test_repr(self):
+    def test_repr(self) -> None:
         """Test string representation."""
         try:
-            config = PydubStitcherConfig(
-                silence_duration_ms=500, output_format="mp3"
-            )
+            config = PydubStitcherConfig(silence_duration_ms=500, output_format="mp3")
             stitcher = PydubStitcher(config)
 
             repr_str = repr(stitcher)
@@ -111,7 +110,7 @@ class TestPydubStitcher:
         except ImportError:
             pytest.skip("pydub not installed")
 
-    def test_repr_with_crossfade(self):
+    def test_repr_with_crossfade(self) -> None:
         """Test string representation with crossfade."""
         try:
             config = PydubStitcherConfig(crossfade_duration_ms=100)
@@ -122,7 +121,7 @@ class TestPydubStitcher:
         except ImportError:
             pytest.skip("pydub not installed")
 
-    def test_repr_with_no_gap(self):
+    def test_repr_with_no_gap(self) -> None:
         """Test string representation with no gap."""
         try:
             config = PydubStitcherConfig(silence_duration_ms=0)
@@ -133,7 +132,7 @@ class TestPydubStitcher:
         except ImportError:
             pytest.skip("pydub not installed")
 
-    def test_stitch_empty_list_raises_error(self):
+    def test_stitch_empty_list_raises_error(self) -> None:
         """Test that stitching empty list raises ValueError."""
         try:
             config = PydubStitcherConfig()
@@ -147,7 +146,7 @@ class TestPydubStitcher:
         except ImportError:
             pytest.skip("pydub not installed")
 
-    def test_stitch_nonexistent_file_raises_error(self):
+    def test_stitch_nonexistent_file_raises_error(self) -> None:
         """Test that stitching nonexistent file raises FileNotFoundError."""
         try:
             config = PydubStitcherConfig()
@@ -161,7 +160,7 @@ class TestPydubStitcher:
         except ImportError:
             pytest.skip("pydub not installed")
 
-    def test_stitch_from_arrays_empty_list_raises_error(self):
+    def test_stitch_from_arrays_empty_list_raises_error(self) -> None:
         """Test that stitching from empty arrays raises ValueError."""
         try:
             config = PydubStitcherConfig()
@@ -175,7 +174,7 @@ class TestPydubStitcher:
         except ImportError:
             pytest.skip("pydub not installed")
 
-    def test_stitch_from_arrays_mismatched_sample_rates_raises_error(self):
+    def test_stitch_from_arrays_mismatched_sample_rates_raises_error(self) -> None:
         """Test that mismatched sample rates raise ValueError."""
         try:
             config = PydubStitcherConfig()
@@ -194,7 +193,7 @@ class TestPydubStitcher:
         except ImportError:
             pytest.skip("pydub not installed")
 
-    def test_stitch_creates_parent_dirs(self):
+    def test_stitch_creates_parent_dirs(self) -> None:
         """Test that stitch creates parent directories."""
         try:
             config = PydubStitcherConfig()
@@ -216,17 +215,16 @@ class TestPydubStitcher:
         except ImportError:
             pytest.skip("pydub not installed")
 
-    def test_init_without_pydub_raises_import_error(self, monkeypatch):
+    def test_init_without_pydub_raises_import_error(self, monkeypatch) -> None:  # type: ignore[no-untyped-def]
         """Test that initializing without pydub raises helpful error."""
         config = PydubStitcherConfig()
 
         # Mock the import to fail
-        import sys
 
-        def mock_import(name, *args, **kwargs):
+        def mock_import(name: str, *args: object, **kwargs: object) -> object:
             if "pydub" in name:
                 raise ImportError("No module named 'pydub'")
-            return __import__(name, *args, **kwargs)
+            return __import__(name, *args, **kwargs)  # type: ignore[arg-type]
 
         monkeypatch.setattr("builtins.__import__", mock_import)
 
@@ -238,15 +236,15 @@ class TestPydubStitcherIntegration:
     """Integration tests for PydubStitcher (requires pydub and ffmpeg)."""
 
     @pytest.fixture
-    def test_audio_files(self):
+    def test_audio_files(self) -> Generator[tuple[Path, list[Path]], None, None]:
         """Create test audio files."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = Path(tmpdir)
+            tmpdir = Path(tmpdir)  # type: ignore[assignment]
 
             # Create 3 test audio files
             audio_files = []
             for i in range(3):
-                audio_path = tmpdir / f"audio_{i}.wav"
+                audio_path = tmpdir / f"audio_{i}.wav"  # type: ignore[operator]
                 sample_rate = 24000
                 duration = 0.5  # 0.5 seconds
                 t = np.linspace(0, duration, int(sample_rate * duration))
@@ -256,9 +254,9 @@ class TestPydubStitcherIntegration:
                 write(str(audio_path), sample_rate, audio_data)
                 audio_files.append(audio_path)
 
-            yield tmpdir, audio_files
+            yield tmpdir, audio_files  # type: ignore[misc]
 
-    def test_stitch_with_silence(self, test_audio_files):
+    def test_stitch_with_silence(self, test_audio_files) -> None:  # type: ignore[no-untyped-def]
         """Test stitching files with silence between them."""
         try:
             tmpdir, audio_files = test_audio_files
@@ -274,7 +272,7 @@ class TestPydubStitcherIntegration:
         except ImportError:
             pytest.skip("pydub not installed")
 
-    def test_stitch_with_crossfade(self, test_audio_files):
+    def test_stitch_with_crossfade(self, test_audio_files) -> None:  # type: ignore[no-untyped-def]
         """Test stitching files with crossfade."""
         try:
             tmpdir, audio_files = test_audio_files
@@ -290,7 +288,7 @@ class TestPydubStitcherIntegration:
         except ImportError:
             pytest.skip("pydub not installed")
 
-    def test_stitch_no_gap(self, test_audio_files):
+    def test_stitch_no_gap(self, test_audio_files) -> None:  # type: ignore[no-untyped-def]
         """Test stitching files with no gap."""
         try:
             tmpdir, audio_files = test_audio_files
@@ -306,7 +304,7 @@ class TestPydubStitcherIntegration:
         except ImportError:
             pytest.skip("pydub not installed")
 
-    def test_stitch_from_arrays(self, test_audio_files):
+    def test_stitch_from_arrays(self, test_audio_files) -> None:  # type: ignore[no-untyped-def]
         """Test stitching from audio arrays."""
         try:
             tmpdir, _ = test_audio_files
@@ -320,9 +318,7 @@ class TestPydubStitcherIntegration:
             for i in range(3):
                 duration = 0.5
                 t = np.linspace(0, duration, int(sample_rate * duration))
-                audio_data = np.sin(2 * np.pi * (440 + i * 100) * t).astype(
-                    np.float32
-                )
+                audio_data = np.sin(2 * np.pi * (440 + i * 100) * t).astype(np.float32)
                 arrays.append((sample_rate, audio_data))
 
             output_path = tmpdir / "output_arrays.wav"
@@ -333,7 +329,7 @@ class TestPydubStitcherIntegration:
         except ImportError:
             pytest.skip("pydub not installed")
 
-    def test_stitch_to_mp3(self, test_audio_files):
+    def test_stitch_to_mp3(self, test_audio_files) -> None:  # type: ignore[no-untyped-def]
         """Test stitching to MP3 format."""
         try:
             tmpdir, audio_files = test_audio_files
@@ -352,7 +348,7 @@ class TestPydubStitcherIntegration:
         except (ImportError, RuntimeError):
             pytest.skip("pydub or ffmpeg not installed")
 
-    def test_stitch_single_file(self, test_audio_files):
+    def test_stitch_single_file(self, test_audio_files) -> None:  # type: ignore[no-untyped-def]
         """Test stitching a single file (edge case)."""
         try:
             tmpdir, audio_files = test_audio_files

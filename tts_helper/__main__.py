@@ -15,19 +15,20 @@ import json
 import sys
 import tempfile
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
 try:
-    from tqdm import tqdm
+    from tqdm import tqdm  # type: ignore[import-untyped]
+
     HAS_TQDM = True
 except ImportError:
     HAS_TQDM = False
     tqdm = None
 
 
-def load_config(config_path: Path) -> Dict[str, Any]:
+def load_config(config_path: Path) -> dict[str, Any]:
     """Load configuration from JSON file.
 
     Args:
@@ -41,17 +42,17 @@ def load_config(config_path: Path) -> Dict[str, Any]:
         json.JSONDecodeError: If config file is invalid JSON
     """
     with config_path.open("r") as f:
-        return json.load(f)
+        return json.load(f)  # type: ignore[no-any-return]
 
 
 def process_audiobook(
     input_text_path: Path,
     output_path: Path,
-    config: Optional[Dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
     keep_chunks: bool = False,
     verbose: bool = False,
-    chunk_progress: Optional[Any] = None,
-    isbn: Optional[str] = None,
+    chunk_progress: Any | None = None,
+    isbn: str | None = None,
 ) -> None:
     """Process text file to audiobook using the complete pipeline.
 
@@ -66,14 +67,14 @@ def process_audiobook(
     """
     from tts_helper import (
         Chunk,
-        NemoNormalizer,
-        NemoNormalizerConfig,
-        SpacySegmenter,
-        SpacySegmenterConfig,
         KokoroTTS,
         KokoroTTSConfig,
+        NemoNormalizer,
+        NemoNormalizerConfig,
         PydubStitcher,
         PydubStitcherConfig,
+        SpacySegmenter,
+        SpacySegmenterConfig,
         TranslationEnhancer,
         TranslationEnhancerConfig,
     )
@@ -141,13 +142,15 @@ def process_audiobook(
         # Warn about oversized chunks
         max_chunk = max((len(c.text) for c in chunks), default=0)
         if max_chunk > segmenter_config.max_chars:
-            import sys
             print(
                 f"\n⚠️  WARNING: Found chunk with {max_chunk} chars "
                 f"(max_chars is {segmenter_config.max_chars})!",
-                file=sys.stderr
+                file=sys.stderr,
             )
-            print("  This indicates a segmenter bug. Chunk will be handled by TTS safety net.", file=sys.stderr)
+            print(
+                "  This indicates a segmenter bug. Chunk will be handled by TTS safety net.",
+                file=sys.stderr,
+            )
 
     # Step 3.5: Enhance chunks (optional)
     enhancer_config_dict = config.get("enhancer", {})
@@ -159,11 +162,11 @@ def process_audiobook(
                 print("Enhancing chunks with translation...")
 
             # Remove 'type' key before passing to config
-            config_without_type = {k: v for k, v in enhancer_config_dict.items() if k != "type"}
-            enhancer_config = TranslationEnhancerConfig.from_dict(
-                config_without_type
-            )
-            enhancer = TranslationEnhancer(enhancer_config)
+            config_without_type = {
+                k: v for k, v in enhancer_config_dict.items() if k != "type"
+            }
+            enhancer_config = TranslationEnhancerConfig.from_dict(config_without_type)
+            enhancer = TranslationEnhancer(enhancer_config)  # type: ignore[arg-type]
             original_count = len(chunks)
             chunks = enhancer.enhance(chunks)
 
@@ -199,7 +202,7 @@ def process_audiobook(
         temp_context = tempfile.TemporaryDirectory()
         chunks_dir = Path(temp_context.__enter__())
 
-    chunk_files: List[Path] = []
+    chunk_files: list[Path] = []
 
     try:
         for i, chunk in enumerate(chunks, 1):
@@ -210,7 +213,7 @@ def process_audiobook(
 
                 # Generate silence audio
                 # Use the same sample rate as TTS (typically 24000 for Kokoro)
-                sample_rate = getattr(tts.config, 'sample_rate', 24000)
+                sample_rate = getattr(tts.config, "sample_rate", 24000)
                 num_samples = int(sample_rate * chunk.silence_ms / 1000.0)
                 silence_audio = np.zeros(num_samples, dtype=np.float32)
 
@@ -243,15 +246,15 @@ def process_audiobook(
             original_language = None
             original_speed = None
 
-            if chunk.voice and hasattr(tts.config, 'voice'):
+            if chunk.voice and hasattr(tts.config, "voice"):
                 original_voice = tts.config.voice
                 tts.config.voice = chunk.voice
 
-            if chunk.language and hasattr(tts.config, 'language'):
+            if chunk.language and hasattr(tts.config, "language"):
                 original_language = tts.config.language
                 tts.config.language = chunk.language
 
-            if chunk.speed is not None and hasattr(tts.config, 'speed'):
+            if chunk.speed is not None and hasattr(tts.config, "speed"):
                 original_speed = tts.config.speed
                 tts.config.speed = chunk.speed
 
@@ -280,14 +283,14 @@ def process_audiobook(
             print(f"Stitching {len(chunk_files)} chunks together...")
 
         stitcher_config = PydubStitcherConfig.from_dict(stitcher_config_dict)
-        stitcher = PydubStitcher(stitcher_config)
+        stitcher = PydubStitcher(stitcher_config)  # type: ignore[arg-type]
 
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        stitcher.stitch(chunk_files, output_path)
+        stitcher.stitch(chunk_files, output_path)  # type: ignore[arg-type]
 
         if verbose:
             file_size_mb = output_path.stat().st_size / (1024 * 1024)
-            print(f"\nAudiobook complete!")
+            print("\nAudiobook complete!")
             print(f"  Output: {output_path}")
             print(f"  Size: {file_size_mb:.1f} MB")
             if keep_chunks:
@@ -302,10 +305,10 @@ def process_audiobook(
 def process_directory(
     input_dir: Path,
     output_dir: Path,
-    config: Optional[Dict[str, Any]] = None,
+    config: dict[str, Any] | None = None,
     keep_chunks: bool = False,
     verbose: bool = False,
-    isbn: Optional[str] = None,
+    isbn: str | None = None,
 ) -> None:
     """Process all text files in a directory to audiobooks.
 
@@ -375,7 +378,7 @@ def process_directory(
                     )
 
                     m4b_size_mb = m4b_file.stat().st_size / (1024 * 1024)
-                    print(f"\nM4B audiobook complete!")
+                    print("\nM4B audiobook complete!")
                     print(f"  M4B Output: {m4b_file}")
                     print(f"  M4B Size: {m4b_size_mb:.1f} MB")
 
@@ -383,6 +386,7 @@ def process_directory(
                 print(f"\nWarning: M4B creation failed: {e}", file=sys.stderr)
                 if verbose:
                     import traceback
+
                     traceback.print_exc()
 
         return
@@ -431,7 +435,7 @@ def process_directory(
                     )
 
                     m4b_size_mb = m4b_file.stat().st_size / (1024 * 1024)
-                    print(f"\nM4B audiobook complete!")
+                    print("\nM4B audiobook complete!")
                     print(f"  M4B Output: {m4b_file}")
                     print(f"  M4B Size: {m4b_size_mb:.1f} MB")
 
@@ -439,6 +443,7 @@ def process_directory(
                 print(f"\nWarning: M4B creation failed: {e}", file=sys.stderr)
                 if verbose:
                     import traceback
+
                     traceback.print_exc()
     else:
         # Non-verbose mode - use progress bars
@@ -498,7 +503,7 @@ def process_directory(
             # Create chunk progress bar
             chunk_progress = tqdm(
                 total=chunk_count,
-                desc=f"  Chunks",
+                desc="  Chunks",
                 unit="chunk",
                 position=1,
                 leave=False,
@@ -547,7 +552,7 @@ def process_directory(
                     )
 
                     m4b_size_mb = m4b_file.stat().st_size / (1024 * 1024)
-                    print(f"\nM4B audiobook complete!")
+                    print("\nM4B audiobook complete!")
                     print(f"  M4B Output: {m4b_file}")
                     print(f"  M4B Size: {m4b_size_mb:.1f} MB")
 
@@ -555,7 +560,7 @@ def process_directory(
                 print(f"\nWarning: M4B creation failed: {e}", file=sys.stderr)
 
 
-def create_default_config() -> Dict[str, Any]:
+def create_default_config() -> dict[str, Any]:
     """Create default configuration dictionary.
 
     Returns:
@@ -596,7 +601,7 @@ def create_default_config() -> Dict[str, Any]:
     }
 
 
-def main():
+def main() -> None:
     """Main CLI entry point."""
     parser = argparse.ArgumentParser(
         description="TTS Helper - Industrial-grade audiobook text-to-speech processor",

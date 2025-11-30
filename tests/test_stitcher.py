@@ -4,7 +4,6 @@ import json
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Tuple, Union
 
 import numpy as np
 import pytest
@@ -23,9 +22,7 @@ class MockStitcherConfig(StitcherConfig):
 class MockStitcher(Stitcher):
     """Mock stitcher for testing base class."""
 
-    def stitch(
-        self, audio_files: List[Union[str, Path]], output_path: Union[str, Path]
-    ) -> None:
+    def stitch(self, audio_files: list[str | Path], output_path: str | Path) -> None:
         """Mock stitch implementation."""
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -33,12 +30,12 @@ class MockStitcher(Stitcher):
         # Just create a marker file
         with output_path.open("w") as f:
             f.write(f"Stitched {len(audio_files)} files\n")
-            f.write(f"Method: {self.config.join_method}\n")
+            f.write(f"Method: {self.config.join_method}\n")  # type: ignore[attr-defined]
 
     def stitch_from_arrays(
         self,
-        audio_arrays: List[Tuple[int, np.ndarray]],
-        output_path: Union[str, Path],
+        audio_arrays: list[tuple[int, np.ndarray]],
+        output_path: str | Path,
     ) -> None:
         """Mock stitch from arrays implementation."""
         output_path = Path(output_path)
@@ -47,16 +44,16 @@ class MockStitcher(Stitcher):
         # Just create a marker file
         with output_path.open("w") as f:
             f.write(f"Stitched {len(audio_arrays)} arrays\n")
-            f.write(f"Method: {self.config.join_method}\n")
+            f.write(f"Method: {self.config.join_method}\n")  # type: ignore[attr-defined]
 
     def __repr__(self) -> str:
-        return f"MockStitcher(method={self.config.join_method})"
+        return f"MockStitcher(method={self.config.join_method})"  # type: ignore[attr-defined]
 
 
 class TestStitcherConfig:
     """Tests for StitcherConfig base class."""
 
-    def test_to_dict(self):
+    def test_to_dict(self) -> None:
         """Test converting config to dictionary."""
         config = MockStitcherConfig(join_method="blend", add_marker=True)
         config_dict = config.to_dict()
@@ -65,7 +62,7 @@ class TestStitcherConfig:
         assert config_dict["join_method"] == "blend"
         assert config_dict["add_marker"] is True
 
-    def test_from_dict(self):
+    def test_from_dict(self) -> None:
         """Test creating config from dictionary."""
         config_dict = {"join_method": "blend", "add_marker": True}
         config = MockStitcherConfig.from_dict(config_dict)
@@ -74,7 +71,7 @@ class TestStitcherConfig:
         assert config.join_method == "blend"
         assert config.add_marker is True
 
-    def test_to_json(self):
+    def test_to_json(self) -> None:
         """Test saving config to JSON file."""
         config = MockStitcherConfig(join_method="blend")
 
@@ -89,7 +86,7 @@ class TestStitcherConfig:
 
             assert loaded["join_method"] == "blend"
 
-    def test_from_json(self):
+    def test_from_json(self) -> None:
         """Test loading config from JSON file."""
         config_dict = {"join_method": "blend", "add_marker": False}
 
@@ -104,12 +101,12 @@ class TestStitcherConfig:
             assert isinstance(config, MockStitcherConfig)
             assert config.join_method == "blend"
 
-    def test_from_json_file_not_found(self):
+    def test_from_json_file_not_found(self) -> None:
         """Test loading from non-existent file raises error."""
         with pytest.raises(FileNotFoundError):
             MockStitcherConfig.from_json("/nonexistent/path.json")
 
-    def test_json_roundtrip(self):
+    def test_json_roundtrip(self) -> None:
         """Test that config survives JSON save/load cycle."""
         original = MockStitcherConfig(join_method="crossfade", add_marker=True)
 
@@ -118,10 +115,10 @@ class TestStitcherConfig:
             original.to_json(json_path)
             loaded = MockStitcherConfig.from_json(json_path)
 
-            assert loaded.join_method == original.join_method
-            assert loaded.add_marker == original.add_marker
+            assert loaded.join_method == original.join_method  # type: ignore[attr-defined]
+            assert loaded.add_marker == original.add_marker  # type: ignore[attr-defined]
 
-    def test_to_json_creates_parent_directories(self):
+    def test_to_json_creates_parent_directories(self) -> None:
         """Test that to_json creates parent directories if needed."""
         config = MockStitcherConfig()
 
@@ -136,15 +133,15 @@ class TestStitcherConfig:
 class TestStitcher:
     """Tests for Stitcher base class."""
 
-    def test_init_with_config(self):
+    def test_init_with_config(self) -> None:
         """Test stitcher initialization with config."""
         config = MockStitcherConfig(join_method="blend")
         stitcher = MockStitcher(config)
 
         assert stitcher.config == config
-        assert stitcher.config.join_method == "blend"
+        assert stitcher.config.join_method == "blend"  # type: ignore[attr-defined]
 
-    def test_stitch(self):
+    def test_stitch(self) -> None:
         """Test basic stitching."""
         config = MockStitcherConfig(join_method="concat")
         stitcher = MockStitcher(config)
@@ -158,7 +155,7 @@ class TestStitcher:
             assert "Stitched 2 files" in content
             assert "Method: concat" in content
 
-    def test_stitch_from_arrays(self):
+    def test_stitch_from_arrays(self) -> None:
         """Test stitching from arrays."""
         config = MockStitcherConfig(join_method="concat")
         stitcher = MockStitcher(config)
@@ -176,7 +173,7 @@ class TestStitcher:
             content = output_path.read_text()
             assert "Stitched 2 arrays" in content
 
-    def test_stitch_creates_parent_dirs(self):
+    def test_stitch_creates_parent_dirs(self) -> None:
         """Test that stitch creates parent directories."""
         config = MockStitcherConfig()
         stitcher = MockStitcher(config)
@@ -188,7 +185,7 @@ class TestStitcher:
             assert output_path.exists()
             assert output_path.parent.exists()
 
-    def test_repr(self):
+    def test_repr(self) -> None:
         """Test string representation."""
         config = MockStitcherConfig(join_method="crossfade")
         stitcher = MockStitcher(config)

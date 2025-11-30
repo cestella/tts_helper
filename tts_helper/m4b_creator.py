@@ -5,7 +5,6 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional
 
 
 @dataclass
@@ -25,7 +24,7 @@ class M4bCreatorConfig:
                 }
     """
 
-    m4b_tool_args: Dict[str, str] = field(default_factory=dict)
+    m4b_tool_args: dict[str, str] = field(default_factory=dict)
 
     def to_json(self, path: Path) -> None:
         """Serialize config to JSON file."""
@@ -35,7 +34,7 @@ class M4bCreatorConfig:
     @classmethod
     def from_json(cls, path: Path) -> "M4bCreatorConfig":
         """Load config from JSON file."""
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
         return cls(m4b_tool_args=data.get("m4b_tool_args", {}))
 
@@ -79,7 +78,7 @@ class M4bCreator:
         metadata = self._fetch_metadata(isbn)
 
         # Always print metadata
-        print(f"\nBook Metadata:")
+        print("\nBook Metadata:")
         print(f"  Title: {metadata['title']}")
         print(f"  Author(s): {metadata['authors']}")
         print(f"  Year: {metadata['year']}")
@@ -94,7 +93,7 @@ class M4bCreator:
         cmd = self._build_command(metadata, chapters_dir, output_file)
 
         # Always print command
-        print(f"\nExecuting m4b-tool command:")
+        print("\nExecuting m4b-tool command:")
         print(f"  {' '.join(cmd)}")
         print()
 
@@ -116,11 +115,11 @@ class M4bCreator:
             ValueError: If metadata cannot be fetched
         """
         try:
-            import isbnlib
-        except ImportError:
+            import isbnlib  # type: ignore[import-untyped]
+        except ImportError as err:
             raise ImportError(
                 "isbnlib is not installed. Install with: pip install isbnlib"
-            )
+            ) from err
 
         # Clean and validate ISBN
         isbn_clean = isbnlib.canonical(isbn)

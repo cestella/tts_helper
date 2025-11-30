@@ -3,7 +3,7 @@
 from tts_helper.spacy_segmenter import SpacySegmenter, SpacySegmenterConfig
 
 
-def test_single_character_chunks_are_merged():
+def test_single_character_chunks_are_merged() -> None:
     """Test that single-character chunks like '–' are merged with adjacent text."""
 
     # Text with a single dash that would be its own sentence
@@ -25,12 +25,14 @@ def test_single_character_chunks_are_merged():
 
     # Verify no chunks are smaller than min_chars
     small_chunks = [c for c in chunks if len(c) < config.min_chars]
-    assert not small_chunks, f"Found chunks smaller than {config.min_chars}: {small_chunks}"
+    assert (
+        not small_chunks
+    ), f"Found chunks smaller than {config.min_chars}: {small_chunks}"
 
     print(f"✅ All chunks are ≥{config.min_chars} chars")
 
 
-def test_multiple_small_chunks():
+def test_multiple_small_chunks() -> None:
     """Test merging multiple small chunks."""
 
     text = "A. B. C. This is a longer sentence."
@@ -51,12 +53,14 @@ def test_multiple_small_chunks():
 
     # Verify no chunks are smaller than min_chars
     small_chunks = [c for c in chunks if len(c) < config.min_chars]
-    assert not small_chunks, f"Found chunks smaller than {config.min_chars}: {small_chunks}"
+    assert (
+        not small_chunks
+    ), f"Found chunks smaller than {config.min_chars}: {small_chunks}"
 
     print(f"✅ All chunks are ≥{config.min_chars} chars")
 
 
-def test_min_chars_zero_disables_merging():
+def test_min_chars_zero_disables_merging() -> None:
     """Test that min_chars=0 disables chunk merging."""
 
     text = "A. B. C."

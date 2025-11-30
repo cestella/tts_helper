@@ -1,44 +1,74 @@
 """Kokoro TTS implementation using kokoro-onnx."""
 
 import urllib.request
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Tuple, Union
+from typing import TYPE_CHECKING
 
 import numpy as np
 
-from .tts import TTS, TTSConfig
 from .language import get_kokoro_code
+from .tts import TTS, TTSConfig
+
+if TYPE_CHECKING:
+    from kokoro_onnx import Kokoro
 
 # Voice mappings by language
-SUPPORTED_VOICES: Dict[str, List[str]] = {
+SUPPORTED_VOICES: dict[str, list[str]] = {
     "en-us": [
         # Female voices
-        "af_alloy", "af_aoede", "af_bella", "af_heart", "af_jessica",
-        "af_kore", "af_nicole", "af_nova", "af_river", "af_sarah", "af_sky",
+        "af_alloy",
+        "af_aoede",
+        "af_bella",
+        "af_heart",
+        "af_jessica",
+        "af_kore",
+        "af_nicole",
+        "af_nova",
+        "af_river",
+        "af_sarah",
+        "af_sky",
         # Male voices
-        "am_adam", "am_echo", "am_eric", "am_fenrir", "am_liam",
-        "am_michael", "am_onyx", "am_puck",
+        "am_adam",
+        "am_echo",
+        "am_eric",
+        "am_fenrir",
+        "am_liam",
+        "am_michael",
+        "am_onyx",
+        "am_puck",
     ],
     "en-gb": [
         # Female voices
-        "bf_alice", "bf_emma", "bf_isabella", "bf_lily",
+        "bf_alice",
+        "bf_emma",
+        "bf_isabella",
+        "bf_lily",
         # Male voices
-        "bm_daniel", "bm_fable", "bm_george", "bm_lewis",
+        "bm_daniel",
+        "bm_fable",
+        "bm_george",
+        "bm_lewis",
     ],
     "fr-fr": ["ff_siwis"],
     "it": ["if_sara", "im_nicola"],
     "ja": ["jf_alpha", "jf_gongitsune", "jf_nezumi", "jf_tebukuro", "jm_kumo"],
     "cmn": [
         # Female voices
-        "zf_xiaobei", "zf_xiaoni", "zf_xiaoxiao", "zf_xiaoyi",
+        "zf_xiaobei",
+        "zf_xiaoni",
+        "zf_xiaoxiao",
+        "zf_xiaoyi",
         # Male voices
-        "zm_yunjian", "zm_yunxi", "zm_yunxia", "zm_yunyang",
+        "zm_yunjian",
+        "zm_yunxi",
+        "zm_yunxia",
+        "zm_yunyang",
     ],
 }
 
 # Default voices for each language
-DEFAULT_VOICES: Dict[str, str] = {
+DEFAULT_VOICES: dict[str, str] = {
     "en-us": "af_sarah",
     "en-gb": "bf_emma",
     "fr-fr": "ff_siwis",
@@ -48,7 +78,7 @@ DEFAULT_VOICES: Dict[str, str] = {
 }
 
 
-def get_supported_voices(language: str) -> List[str]:
+def get_supported_voices(language: str) -> list[str]:
     """Get supported voices for a language.
 
     Args:
@@ -111,7 +141,7 @@ def download_model_file(url: str, destination: Path, verbose: bool = False) -> N
         destination.parent.mkdir(parents=True, exist_ok=True)
 
         # Download with progress reporting
-        def reporthook(block_num, block_size, total_size):
+        def reporthook(block_num: int, block_size: int, total_size: int) -> None:
             if verbose and total_size > 0:
                 downloaded = block_num * block_size
                 percent = min(100, downloaded * 100 / total_size)
@@ -143,13 +173,13 @@ class KokoroTTSConfig(TTSConfig):
     """
 
     language: str = "english"
-    voice: Optional[str] = None
+    voice: str | None = None
     speed: float = 1.0
-    model_path: Optional[str] = None
-    voices_path: Optional[str] = None
+    model_path: str | None = None
+    voices_path: str | None = None
     verbose: bool = False
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Validate configuration after initialization."""
         # Get Kokoro language code
         lang_code = get_kokoro_code(self.language)
@@ -207,10 +237,10 @@ class KokoroTTS(TTS):
         """
         super().__init__(config)
         self.config: KokoroTTSConfig  # Type hint for IDE support
-        self._engine = None
+        self._engine: "Kokoro | None" = None  # noqa: UP037
 
     @property
-    def engine(self):
+    def engine(self) -> "Kokoro":
         """Lazy-load Kokoro engine.
 
         Returns:
@@ -222,11 +252,11 @@ class KokoroTTS(TTS):
         if self._engine is None:
             try:
                 from kokoro_onnx import Kokoro
-            except ImportError:
+            except ImportError as err:
                 raise ImportError(
                     "kokoro-onnx is not installed. Install it with: pip install kokoro-onnx\n"
                     "Also requires model files. See README for installation."
-                )
+                ) from err
 
             # Determine model paths
             model_path = Path(self.config.model_path or "kokoro-v1.0.onnx")
@@ -238,7 +268,9 @@ class KokoroTTS(TTS):
 
             try:
                 download_model_file(model_url, model_path, verbose=self.config.verbose)
-                download_model_file(voices_url, voices_path, verbose=self.config.verbose)
+                download_model_file(
+                    voices_url, voices_path, verbose=self.config.verbose
+                )
             except RuntimeError as e:
                 raise RuntimeError(
                     f"Failed to download Kokoro model files: {e}\n"
@@ -256,7 +288,7 @@ class KokoroTTS(TTS):
 
         return self._engine
 
-    def synthesize(self, text: str) -> Tuple[int, np.ndarray]:
+    def synthesize(self, text: str) -> tuple[int, np.ndarray]:
         """Synthesize speech from text.
 
         Args:
@@ -278,7 +310,7 @@ class KokoroTTS(TTS):
         try:
             samples, sample_rate = self.engine.create(
                 text,
-                voice=self.config.voice,
+                voice=self.config.voice,  # type: ignore[arg-type]
                 speed=self.config.speed,
                 lang=self.config.kokoro_language_code,
             )
@@ -321,7 +353,7 @@ class KokoroTTS(TTS):
         return sample_rate, samples
 
     def save_audio(
-        self, audio_data: np.ndarray, sample_rate: int, output_path: Union[str, Path]
+        self, audio_data: np.ndarray, sample_rate: int, output_path: str | Path
     ) -> None:
         """Save audio to WAV file.
 
@@ -330,7 +362,7 @@ class KokoroTTS(TTS):
             sample_rate: Sample rate in Hz
             output_path: Path to save WAV file
         """
-        from scipy.io.wavfile import write
+        from scipy.io.wavfile import write  # type: ignore[import-untyped]
 
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
