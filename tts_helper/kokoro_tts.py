@@ -314,6 +314,18 @@ class KokoroTTS(TTS):
                 speed=self.config.speed,
                 lang=self.config.kokoro_language_code,
             )
+        except ValueError as e:
+            # Handle empty audio (e.g., from non-speech text like separators)
+            if "need at least one array to concatenate" in str(e):
+                if self.config.verbose:
+                    print(
+                        f"Warning: Kokoro generated no audio for text (likely non-speech content). "
+                        f"Returning silence. Text preview: {text[:100]}..."
+                    )
+                # Return silence instead of crashing
+                return 24000, np.array([], dtype=np.float32)
+            # Re-raise other ValueErrors
+            raise
         except Exception as e:
             # Provide detailed error information
             import sys

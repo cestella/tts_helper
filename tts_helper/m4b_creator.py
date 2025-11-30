@@ -3,6 +3,8 @@
 import json
 import re
 import subprocess
+import tempfile
+import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -82,6 +84,13 @@ class M4bCreator:
         print(f"  Title: {metadata['title']}")
         print(f"  Author(s): {metadata['authors']}")
         print(f"  Year: {metadata['year']}")
+        if metadata['publisher']:
+            print(f"  Publisher: {metadata['publisher']}")
+        if metadata['language']:
+            print(f"  Language: {metadata['language']}")
+        if metadata['description']:
+            desc_preview = metadata['description'][:100] + "..." if len(metadata['description']) > 100 else metadata['description']
+            print(f"  Description: {desc_preview}")
 
         # Sanitize title for filename
         filename = self._sanitize_filename(metadata["title"])
@@ -89,16 +98,29 @@ class M4bCreator:
         # Construct output path
         output_file = output_parent_dir / f"{filename}.m4b"
 
-        # Build m4b-tool command
-        cmd = self._build_command(metadata, chapters_dir, output_file)
+        # Download cover art if available
+        cover_path = None
+        if metadata.get("cover_url"):
+            cover_path = self._download_cover(metadata["cover_url"], verbose)
+            if cover_path:
+                print(f"  Cover art: Downloaded")
 
-        # Always print command
-        print("\nExecuting m4b-tool command:")
-        print(f"  {' '.join(cmd)}")
-        print()
+        try:
+            # Build m4b-tool command
+            cmd = self._build_command(metadata, chapters_dir, output_file, cover_path)
 
-        # Execute command
-        self._execute_command(cmd, verbose)
+            # Always print command
+            print("\nExecuting m4b-tool command:")
+            print(f"  {' '.join(cmd)}")
+            print()
+
+            # Execute command
+            self._execute_command(cmd, verbose)
+
+        finally:
+            # Clean up temporary cover file
+            if cover_path and cover_path.exists():
+                cover_path.unlink()
 
         return output_file
 
@@ -109,7 +131,7 @@ class M4bCreator:
             isbn: ISBN-10 or ISBN-13
 
         Returns:
-            Dictionary with title, authors, and year
+            Dictionary with title, authors, year, publisher, language, description, and cover_url
 
         Raises:
             ValueError: If metadata cannot be fetched
@@ -134,14 +156,72 @@ class M4bCreator:
                 f"Please check the ISBN is correct and try again."
             )
 
-        # Extract year from metadata
-        year = meta.get("Year", "")
+        # Fetch description (may not be available for all books)
+        description = ""
+        try:
+            desc = isbnlib.desc(isbn_clean)
+            if desc:
+                description = desc
+        except Exception:
+            pass  # Description not available, continue without it
+
+        # Fetch cover art URLs (may not be available for all books)
+        cover_url = ""
+        try:
+            cover = isbnlib.cover(isbn_clean)
+            if cover:
+                # Prefer thumbnail over smallThumbnail for better quality
+                cover_url = cover.get("thumbnail", cover.get("smallThumbnail", ""))
+        except Exception:
+            pass  # Cover not available, continue without it
 
         return {
             "title": meta.get("Title", "Unknown Title"),
             "authors": ", ".join(meta.get("Authors", ["Unknown Author"])),
-            "year": year,
+            "year": meta.get("Year", ""),
+            "publisher": meta.get("Publisher", ""),
+            "language": meta.get("Language", ""),
+            "description": description,
+            "cover_url": cover_url,
         }
+
+    def _download_cover(self, cover_url: str, verbose: bool = False) -> Path | None:
+        """Download cover image to temporary file.
+
+        Args:
+            cover_url: URL to cover image
+            verbose: Whether to print verbose output
+
+        Returns:
+            Path to downloaded cover file, or None if download fails
+        """
+        if not cover_url:
+            return None
+
+        try:
+            if verbose:
+                print(f"Downloading cover art from: {cover_url}")
+
+            # Create temporary file for cover
+            # Use jpg extension (most common for book covers)
+            temp_file = tempfile.NamedTemporaryFile(
+                suffix=".jpg", delete=False, mode="wb"
+            )
+            temp_path = Path(temp_file.name)
+
+            # Download cover image
+            urllib.request.urlretrieve(cover_url, temp_path)
+
+            if verbose:
+                file_size_kb = temp_path.stat().st_size / 1024
+                print(f"  Cover downloaded: {file_size_kb:.1f} KB")
+
+            return temp_path
+
+        except Exception as e:
+            if verbose:
+                print(f"  Warning: Failed to download cover: {e}")
+            return None
 
     def _sanitize_filename(self, title: str) -> str:
         """Sanitize title for filename: lowercase, no spaces/punctuation.
@@ -163,7 +243,11 @@ class M4bCreator:
         return sanitized.lower().strip("_")
 
     def _build_command(
-        self, metadata: dict, chapters_dir: Path, output_file: Path
+        self,
+        metadata: dict,
+        chapters_dir: Path,
+        output_file: Path,
+        cover_path: Path | None = None,
     ) -> list:
         """Build m4b-tool merge command with metadata and config args.
 
@@ -171,6 +255,7 @@ class M4bCreator:
             metadata: Book metadata (title, authors, year)
             chapters_dir: Directory containing audio chapters
             output_file: Output .m4b file path
+            cover_path: Optional path to cover image file
 
         Returns:
             Command as list of strings
@@ -182,11 +267,24 @@ class M4bCreator:
 
         # Add metadata args from ISBN
         cmd.extend(["--name", metadata["title"]])
-        cmd.extend(["--writer", metadata["authors"]])
+        cmd.extend(["--artist", metadata["authors"]])
+        cmd.extend(["--albumartist", metadata["authors"]])
         cmd.extend(["--album", metadata["title"]])
 
         if metadata["year"]:
             cmd.extend(["--year", str(metadata["year"])])
+
+        if metadata["description"]:
+            cmd.extend(["--description", metadata["description"]])
+            cmd.extend(["--longdesc", metadata["description"]])
+
+        if metadata["publisher"]:
+            # Add publisher to comment field
+            cmd.extend(["--comment", f"Publisher: {metadata['publisher']}"])
+
+        # Add cover art if provided
+        if cover_path and cover_path.exists():
+            cmd.extend(["--cover", str(cover_path)])
 
         # Add config args
         for key, value in self.config.m4b_tool_args.items():

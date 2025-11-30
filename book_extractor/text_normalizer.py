@@ -37,16 +37,47 @@ def _normalize_language_code(language_hint: str | None) -> str:
     return parts[0].strip().lower() or "en"
 
 
+def _is_separator_line(line: str) -> bool:
+    """Check if a line is just a separator (repeated punctuation/symbols)."""
+    if not line or len(line) < 3:
+        return False
+
+    # Remove whitespace and check if it's just repeated characters
+    stripped = line.strip()
+    if not stripped:
+        return False
+
+    # Common separator characters
+    separator_chars = {"-", "=", "_", "*", "#", "~", ".", "+"}
+
+    # Check if line is made up of only separator characters and whitespace
+    unique_chars = set(stripped)
+    if unique_chars <= separator_chars:
+        # Line is only separator characters
+        return True
+
+    # Check if line is mostly (>80%) the same character repeated
+    if len(unique_chars) == 1 and stripped[0] in separator_chars:
+        return True
+
+    return False
+
+
 def normalize_text_for_tts(text: str, language_hint: str | None = None) -> str:
     """
     Normalize text spacing and sentence boundaries to be TTS-friendly.
 
     Steps:
       - Trim lines and drop blank ones
+      - Filter out separator lines (repeated dashes, equals, etc.)
       - Preserve paragraph breaks with double newlines
       - If spaCy is available, re-segment sentences for cleaner spacing
     """
-    paragraphs = [line.strip() for line in text.splitlines() if line.strip()]
+    paragraphs = [
+        line.strip()
+        for line in text.splitlines()
+        if line.strip() and not _is_separator_line(line)
+    ]
     if not paragraphs:
         return ""
 
