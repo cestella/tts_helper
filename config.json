@@ -1,0 +1,47 @@
+{
+  "tts_engine": "kokoro",
+  "normalizer": {
+    "language": "english",
+    "input_case": "cased",
+    "verbose": false
+  },
+  "segmenter": {
+    "language": "english",
+    "strategy": "char_count",
+    "max_chars": 300,
+    "min_chars": 3,
+    "sentences_per_chunk": 3
+  },
+  "tts": {
+    "language": "english",
+    "voice": "am_onyx",
+    "speed": 1.0,
+    "verbose": false
+  },
+  "enhancer": {
+    "type": "translation",
+    "probability": 0.08,
+    "source_language": "english",
+    "target_language": "italian",
+    "translation_voice": "im_nicola",
+    "translation_speed": 0.7,
+    "pause_before_ms": 300,
+    "pause_after_ms": 300,
+    "model_id": "facebook/nllb-200-distilled-600M",
+    "max_length": 500,
+    "device": "cpu",
+    "verbose": true
+  },
+  "stitcher": {
+    "silence_duration_ms": 300,
+    "crossfade_duration_ms": 0,
+    "output_format": "mp3",
+    "export_bitrate": "192k"
+  },
+  "m4b_tool_args": {
+    "audio-bitrate": "64k",
+    "use-filenames-as-chapters": "",
+    "jobs": "4"
+  },
+  "skip_normalization": false
+}

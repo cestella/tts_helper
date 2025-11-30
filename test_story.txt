@@ -1,0 +1,7 @@
+Hello world! This is a test of the TTS Helper audiobook pipeline.
+
+Dr. Smith discovered something amazing at 3:30pm on January 15th, 2024.
+He had invested $1,234 into the research project.
+There were 42 test subjects in the study.
+
+This short story demonstrates the complete pipeline working together.

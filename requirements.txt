@@ -1,0 +1,39 @@
+# Core dependencies for tts-helper
+spacy>=3.7.0,<4.0.0
+
+# Optional: Advanced text normalization
+# NOTE: nemo_text_processing requires manual installation on macOS due to pynini compilation.
+# See README.md section "Installing nemo_text_processing on macOS" for installation instructions.
+# After following those instructions, nemo_text_processing will be installed separately.
+# nemo_text_processing>=1.0.0
+
+# TTS with Kokoro models
+kokoro-onnx>=0.3.9
+scipy>=1.10.0
+
+# Optional: Audio stitching with pydub
+# NOTE: pydub requires ffmpeg to be installed
+# See README.md for installation instructions:
+#   macOS: brew install ffmpeg
+#   Ubuntu: sudo apt-get install ffmpeg
+#   Windows: Download from https://ffmpeg.org/
+pydub>=0.25.0
+audioop-lts>=0.2.0; python_version >= "3.13"
+
+# Progress bars for batch processing
+tqdm>=4.66.0
+
+# Optional: Translation enhancer with NLLB (Meta's No Language Left Behind)
+transformers>=4.30.0
+torch>=2.0.0
+sentencepiece>=0.1.99  # Required for NLLB tokenizer
+protobuf>=3.20.0  # Required for sentencepiece
+
+# Optional: Book extraction (EPUB and Markdown)
+ebooklib>=0.18  # EPUB extraction
+trafilatura>=1.9.0  # Clean HTML-to-text extraction for EPUB
+markdown>=3.0  # Markdown rendering to text
+beautifulsoup4>=4.10  # HTML-to-text extraction for rendered markdown
+
+# Optional: M4B audiobook creation
+isbnlib>=3.10.0  # ISBN metadata lookup for audiobook creation
