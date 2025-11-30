@@ -16,7 +16,6 @@ class LanguageCode:
         iso_639_1: str,
         flores_200: str,
         nemo: Optional[str] = None,
-        orpheus: Optional[str] = None,
         kokoro: Optional[str] = None,
     ):
         """Initialize language codes.
@@ -26,14 +25,12 @@ class LanguageCode:
             iso_639_1: ISO 639-1 two-letter code (e.g., "en", "it")
             flores_200: FLORES-200 code for NLLB translation (e.g., "eng_Latn", "ita_Latn")
             nemo: NeMo normalizer language code (defaults to iso_639_1)
-            orpheus: Orpheus TTS language code (defaults to name)
             kokoro: Kokoro TTS language code (defaults to iso_639_1 with region like "en-us")
         """
         self.name = name.lower()
         self.iso_639_1 = iso_639_1
         self.flores_200 = flores_200
         self.nemo = nemo or iso_639_1
-        self.orpheus = orpheus or name
         self.kokoro = kokoro
 
 
@@ -44,7 +41,6 @@ _LANGUAGES: Dict[str, LanguageCode] = {
         iso_639_1="en",
         flores_200="eng_Latn",
         nemo="en",
-        orpheus="english",
         kokoro="en-us",
     ),
     "italian": LanguageCode(
@@ -52,7 +48,6 @@ _LANGUAGES: Dict[str, LanguageCode] = {
         iso_639_1="it",
         flores_200="ita_Latn",
         nemo="it",
-        orpheus="italian",
         kokoro="it",
     ),
     "spanish": LanguageCode(
@@ -60,7 +55,6 @@ _LANGUAGES: Dict[str, LanguageCode] = {
         iso_639_1="es",
         flores_200="spa_Latn",
         nemo="es",
-        orpheus="spanish",
         kokoro="es",
     ),
     "french": LanguageCode(
@@ -68,15 +62,13 @@ _LANGUAGES: Dict[str, LanguageCode] = {
         iso_639_1="fr",
         flores_200="fra_Latn",
         nemo="fr",
-        orpheus="french",
-        kokoro="fr",
+        kokoro="fr-fr",
     ),
     "german": LanguageCode(
         name="german",
         iso_639_1="de",
         flores_200="deu_Latn",
         nemo="de",
-        orpheus="german",
         kokoro="de",
     ),
     "portuguese": LanguageCode(
@@ -84,7 +76,6 @@ _LANGUAGES: Dict[str, LanguageCode] = {
         iso_639_1="pt",
         flores_200="por_Latn",
         nemo="pt",
-        orpheus="portuguese",
         kokoro="pt",
     ),
     "russian": LanguageCode(
@@ -92,7 +83,6 @@ _LANGUAGES: Dict[str, LanguageCode] = {
         iso_639_1="ru",
         flores_200="rus_Cyrl",
         nemo="ru",
-        orpheus="russian",
         kokoro="ru",
     ),
     "chinese": LanguageCode(
@@ -100,15 +90,13 @@ _LANGUAGES: Dict[str, LanguageCode] = {
         iso_639_1="zh",
         flores_200="zho_Hans",
         nemo="zh",
-        orpheus="chinese",
-        kokoro="zh",
+        kokoro="cmn",
     ),
     "japanese": LanguageCode(
         name="japanese",
         iso_639_1="ja",
         flores_200="jpn_Jpan",
         nemo="ja",
-        orpheus="japanese",
         kokoro="ja",
     ),
 }
@@ -170,18 +158,6 @@ def get_iso_code(language: str) -> str:
         ISO 639-1 code (e.g., "en")
     """
     return get_language(language).iso_639_1
-
-
-def get_orpheus_code(language: str) -> str:
-    """Get Orpheus TTS language code.
-
-    Args:
-        language: Language name (e.g., "english")
-
-    Returns:
-        Orpheus language code (e.g., "english")
-    """
-    return get_language(language).orpheus
 
 
 def get_kokoro_code(language: str) -> str:

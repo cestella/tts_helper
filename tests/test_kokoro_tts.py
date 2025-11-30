@@ -46,7 +46,7 @@ class TestKokoroTTSConfig:
 
     def test_invalid_language_raises_error(self):
         """Test that invalid language raises ValueError."""
-        with pytest.raises(ValueError, match="not supported"):
+        with pytest.raises(ValueError, match="Unsupported language"):
             KokoroTTSConfig(language="klingon")
 
     def test_invalid_voice_raises_error(self):
@@ -138,7 +138,7 @@ class TestKokoroTTS:
 
         repr_str = repr(tts)
         assert "KokoroTTS" in repr_str
-        assert "fr-fr" in repr_str
+        assert "french" in repr_str
         assert "ff_siwis" in repr_str
         assert "1.5" in repr_str
 
@@ -190,9 +190,9 @@ class TestKokoroTTS:
 class TestVoiceHelperFunctions:
     """Tests for helper functions."""
 
-    def test_get_supported_voices_en_us(self):
-        """Test getting supported voices for US English."""
-        voices = get_supported_voices("en-us")
+    def test_get_supported_voices_english(self):
+        """Test getting supported voices for English."""
+        voices = get_supported_voices("english")
 
         assert isinstance(voices, list)
         assert len(voices) == 19  # 11 female + 8 male
@@ -202,30 +202,29 @@ class TestVoiceHelperFunctions:
 
     def test_get_supported_voices_all_languages(self):
         """Test getting supported voices for all languages."""
-        for language in ["en-us", "en-gb", "fr-fr", "it", "ja", "cmn"]:
+        for language in ["english", "french", "italian", "japanese", "chinese"]:
             voices = get_supported_voices(language)
             assert isinstance(voices, list)
             assert len(voices) > 0
 
     def test_get_supported_voices_invalid_language(self):
         """Test getting voices for invalid language raises error."""
-        with pytest.raises(ValueError, match="not supported"):
+        with pytest.raises(ValueError, match="Unsupported language"):
             get_supported_voices("klingon")
 
-    def test_get_default_voice_en_us(self):
-        """Test getting default voice for US English."""
-        voice = get_default_voice("en-us")
+    def test_get_default_voice_english(self):
+        """Test getting default voice for English."""
+        voice = get_default_voice("english")
         assert voice == "af_sarah"
 
     def test_get_default_voice_all_languages(self):
         """Test getting default voice for all languages."""
         expected_defaults = {
-            "en-us": "af_sarah",
-            "en-gb": "bf_emma",
-            "fr-fr": "ff_siwis",
-            "it": "if_sara",
-            "ja": "jf_alpha",
-            "cmn": "zf_xiaoxiao",
+            "english": "af_sarah",
+            "french": "ff_siwis",
+            "italian": "if_sara",
+            "japanese": "jf_alpha",
+            "chinese": "zf_xiaoxiao",
         }
 
         for language, expected_voice in expected_defaults.items():
@@ -234,7 +233,7 @@ class TestVoiceHelperFunctions:
 
     def test_get_default_voice_invalid_language(self):
         """Test getting default voice for invalid language raises error."""
-        with pytest.raises(ValueError, match="not supported"):
+        with pytest.raises(ValueError, match="Unsupported language"):
             get_default_voice("klingon")
 
     def test_voice_mappings_consistency(self):
@@ -244,7 +243,7 @@ class TestVoiceHelperFunctions:
             assert default_voice in SUPPORTED_VOICES[lang_code]
 
         # Check that all language codes have voices
-        for lang_code in ["en-us", "en-gb", "fr-fr", "it", "ja", "cmn"]:
+        for lang_code in ["en-us", "fr-fr", "it", "ja", "cmn"]:
             assert lang_code in SUPPORTED_VOICES
             assert lang_code in DEFAULT_VOICES
             assert len(SUPPORTED_VOICES[lang_code]) > 0

@@ -21,13 +21,41 @@ The library uses spaCy's advanced NLP capabilities for accurate sentence boundar
 
 ## Installation
 
-### Basic Installation
+### From Source (Development)
+
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/cestella/tts_helper.git
+   cd tts_helper
+   ```
+
+2. **Create and activate a virtual environment:**
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+   **Note:** On macOS, `nemo_text_processing` requires manual installation (see below). All other dependencies will install automatically.
+
+4. **Install the package in development mode:**
+   ```bash
+   pip install -e .
+   ```
+
+   This installs tts-helper in editable mode, allowing you to modify the code and see changes immediately without reinstalling.
+
+### From PyPI (When Published)
 
 ```bash
 pip install tts-helper
 ```
 
-### With spaCy Language Models
+### spaCy Language Models
 
 After installation, download the spaCy language model for your target language:
 
@@ -107,53 +135,7 @@ If you want to use [NeMo Text Processing](https://github.com/NVIDIA/NeMo-text-pr
 
 **Note:** This manual installation is only necessary if you need NeMo's text normalization features. The core TTS Helper functionality works without nemo_text_processing.
 
-### Installing Orpheus TTS (Advanced)
-
-If you want to use Orpheus TTS for speech synthesis, you need to install `llama-cpp-python` and `orpheus-cpp`.
-
-**Prerequisites:**
-- Python 3.10+
-- For GPU acceleration: Metal (macOS) or CUDA (Linux/Windows)
-
-**Step-by-step installation:**
-
-1. **Install llama-cpp-python (platform-specific):**
-
-   **macOS (with Metal GPU acceleration):**
-   ```bash
-   pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/metal
-   ```
-
-   **Linux/Windows (CPU only):**
-   ```bash
-   pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
-   ```
-
-   **Linux with CUDA:**
-   ```bash
-   pip install llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu121
-   ```
-
-2. **Install orpheus-cpp and scipy:**
-   ```bash
-   pip install orpheus-cpp scipy
-   ```
-
-3. **Verify installation:**
-   ```bash
-   python -c "from orpheus_cpp import OrpheusCpp; print('Orpheus TTS ready!')"
-   ```
-
-**Supported Languages & Voices:**
-
-- **English**: tara, leah, jess, leo, dan, mia, zac, zoe
-- **French**: pierre, amelie, marie
-- **Spanish**: javi, sergio, maria
-- **Italian**: pietro, giulia, carlo
-
-**Note:** Orpheus models will be downloaded automatically on first use (several GB per language).
-
-### Installing Kokoro TTS (Advanced)
+### Installing Kokoro TTS
 
 If you want to use Kokoro TTS for high-quality, multi-language speech synthesis, you need to install `kokoro-onnx` and download model files.
 
@@ -214,7 +196,7 @@ Kokoro supports 6 languages with 43+ high-quality voices:
   - Female: zf_xiaobei, zf_xiaoni, zf_xiaoxiao (default), zf_xiaoyi
   - Male: zm_yunjian, zm_yunxi, zm_yunxia, zm_yunyang
 
-**Note:** Model files are ~150MB total. Unlike Orpheus, they are not language-specific - one model supports all languages.
+**Note:** Model files are ~150MB total. One model supports all languages.
 
 ### Installing pydub for Audio Stitching (Advanced)
 
@@ -258,6 +240,55 @@ If you want to stitch multiple audio segments together with silence or crossfade
    ```
 
 **Note:** pydub is only required if you want to combine audio segments. The core TTS functionality works without it.
+
+### Installing m4b-tool for M4B Audiobooks (Advanced)
+
+If you want to create M4B audiobooks with chapter markers and metadata from ISBN, you need to install `m4b-tool` and `isbnlib`.
+
+**Prerequisites:**
+- Python 3.10+
+- m4b-tool installed on your system
+- ffmpeg (usually installed with m4b-tool)
+
+**Step-by-step installation:**
+
+1. **Install m4b-tool:**
+
+   **macOS (via Homebrew):**
+   ```bash
+   brew install m4b-tool
+   ```
+
+   **Linux:**
+   ```bash
+   # Download latest release
+   wget https://github.com/sandreas/m4b-tool/releases/latest/download/m4b-tool.tar.gz
+   tar -xzf m4b-tool.tar.gz
+   sudo mv m4b-tool /usr/local/bin/
+   sudo chmod +x /usr/local/bin/m4b-tool
+   ```
+
+   **Windows:**
+   Download from [m4b-tool releases](https://github.com/sandreas/m4b-tool/releases) and add to PATH.
+
+2. **Install isbnlib:**
+   ```bash
+   pip install isbnlib
+   ```
+
+3. **Verify installation:**
+   ```bash
+   m4b-tool --version
+   python -c "import isbnlib; print('isbnlib ready!')"
+   ```
+
+**How it works (Directory Mode Only):**
+- When processing a directory with `--isbn`, the tool fetches book metadata (title, author, year)
+- After creating individual MP3 files from each chapter, m4b-tool merges them into a single M4B audiobook
+- The M4B file includes proper metadata and chapter markers (using filenames as chapter names)
+- M4B filename is automatically generated from book title (lowercase, no spaces/punctuation)
+
+**Note:** M4B creation only works in directory mode where you're processing multiple chapter files. For single files, the tool creates a standard audio file without M4B packaging.
 
 ## Quick Start
 
@@ -394,23 +425,6 @@ for i, chunks in enumerate(all_chunks, 1):
     print(f"Chapter {i}: {len(chunks)} chunks")
 ```
 
-### Text-to-Speech with Orpheus TTS
-
-```python
-from tts_helper import OrpheusTTS, OrpheusTTSConfig
-
-# Create TTS with default English voice (tara)
-config = OrpheusTTSConfig(language="english", voice="tara", use_gpu=True)
-tts = OrpheusTTS(config)
-
-# Synthesize speech
-text = "Hello world! This is a test of the Orpheus text-to-speech system."
-sample_rate, audio = tts.synthesize(text)
-
-# Save to file
-tts.save_audio(audio, sample_rate, "output.wav")
-```
-
 ### Complete Pipeline: Normalize → Segment → TTS
 
 ```python
@@ -418,7 +432,7 @@ from pathlib import Path
 from tts_helper import (
     NemoNormalizer, NemoNormalizerConfig,
     SpacySegmenter, SpacySegmenterConfig,
-    OrpheusTTS, OrpheusTTSConfig
+    KokoroTTS, KokoroTTSConfig
 )
 
 # Step 1: Normalize text to spoken form
@@ -444,8 +458,8 @@ segmenter = SpacySegmenter(segmenter_config)
 chunks = segmenter.segment(normalized_text)
 
 # Step 3: Synthesize each chunk to audio
-tts_config = OrpheusTTSConfig(language="english", voice="leo", use_gpu=True)
-tts = OrpheusTTS(tts_config)
+tts_config = KokoroTTSConfig(language="english", voice="am_adam", speed=1.0)
+tts = KokoroTTS(tts_config)
 
 output_dir = Path("audiobook_output")
 output_dir.mkdir(exist_ok=True)
@@ -458,33 +472,6 @@ for i, chunk in enumerate(chunks, 1):
     tts.save_audio(audio, sample_rate, output_path)
 
 print(f"Generated {len(chunks)} audio files in {output_dir}")
-```
-
-### Using Different Voices and Languages
-
-```python
-from tts_helper import OrpheusTTS, OrpheusTTSConfig, get_supported_voices
-
-# List available voices for a language
-english_voices = get_supported_voices("english")
-print(f"English voices: {english_voices}")
-# Output: ['tara', 'leah', 'jess', 'leo', 'dan', 'mia', 'zac', 'zoe']
-
-# French TTS with male voice
-fr_config = OrpheusTTSConfig(language="french", voice="pierre")
-fr_tts = OrpheusTTS(fr_config)
-
-french_text = "Bonjour! Comment allez-vous aujourd'hui?"
-sample_rate, audio = fr_tts.synthesize(french_text)
-fr_tts.save_audio(audio, sample_rate, "french_output.wav")
-
-# Spanish TTS with female voice
-es_config = OrpheusTTSConfig(language="spanish", voice="maria")
-es_tts = OrpheusTTS(es_config)
-
-spanish_text = "Hola! ¿Cómo estás hoy?"
-sample_rate, audio = es_tts.synthesize(spanish_text)
-es_tts.save_audio(audio, sample_rate, "spanish_output.wav")
 ```
 
 ### Text-to-Speech with Kokoro TTS
@@ -539,27 +526,12 @@ sample_rate, audio = fast_tts.synthesize(fast_text)
 fast_tts.save_audio(audio, sample_rate, "fast_output.wav")
 ```
 
-### Choosing Between Orpheus and Kokoro TTS
+### Using Kokoro for Multi-Language TTS
 
-Both TTS engines have different strengths:
-
-**Orpheus TTS:**
-- Larger, more natural-sounding voices
-- Supports English, French, Spanish, Italian
-- Requires GPU for reasonable speed
-- Models are ~2-4GB per language
-- Best for: audiobooks, natural-sounding narration
-
-**Kokoro TTS:**
-- Fast, lightweight ONNX-based engine
-- Supports 6 languages including Japanese and Chinese
-- Works well on CPU
-- Single ~150MB model for all languages
-- Multiple voices per language (43+ total)
-- Best for: multi-language projects, faster processing, resource-constrained environments
+Kokoro TTS supports 6 languages including Japanese and Chinese, making it ideal for multi-language projects:
 
 ```python
-# Example: Using Kokoro for Japanese audiobook
+# Example: Japanese TTS with Kokoro
 from tts_helper import (
     SpacySegmenter, SpacySegmenterConfig,
     KokoroTTS, KokoroTTSConfig,
@@ -625,7 +597,7 @@ from pathlib import Path
 from tts_helper import (
     NemoNormalizer, NemoNormalizerConfig,
     SpacySegmenter, SpacySegmenterConfig,
-    OrpheusTTS, OrpheusTTSConfig,
+    KokoroTTS, KokoroTTSConfig,
     PydubStitcher, PydubStitcherConfig,
 )
 
@@ -647,7 +619,7 @@ segmenter = SpacySegmenter(
 chunks = segmenter.segment(normalized_text)
 
 # 3. Synthesize each chunk
-tts = OrpheusTTS(OrpheusTTSConfig(language="english", voice="leo"))
+tts = KokoroTTS(KokoroTTSConfig(language="english", voice="am_adam"))
 
 output_dir = Path("audiobook_chunks")
 output_dir.mkdir(exist_ok=True)
@@ -695,6 +667,9 @@ python -m tts_helper input.txt --output audiobook.mp3 --verbose
 
 # Keep intermediate audio chunks
 python -m tts_helper input.txt --output audiobook.mp3 --keep-chunks
+
+# Process directory of chapters to M4B audiobook (directory mode only)
+python -m tts_helper chapters_dir/ --output audiobooks/ --isbn 978-0-441-00731-2
 ```
 
 ### Configuration File Format
@@ -709,7 +684,7 @@ This creates `config.json` with the following structure:
 
 ```json
 {
-  "tts_engine": "orpheus",
+  "tts_engine": "kokoro",
   "normalizer": {
     "language": "en",
     "input_case": "cased",
@@ -723,9 +698,8 @@ This creates `config.json` with the following structure:
   },
   "tts": {
     "language": "english",
-    "voice": "tara",
-    "use_gpu": true,
-    "n_gpu_layers": -1,
+    "voice": "af_sarah",
+    "speed": 1.0,
     "verbose": false
   },
   "stitcher": {
@@ -734,14 +708,18 @@ This creates `config.json` with the following structure:
     "output_format": "mp3",
     "export_bitrate": "192k"
   },
+  "m4b_tool_args": {
+    "audio-bitrate": "64k",
+    "use-filenames-as-chapters": "",
+    "jobs": "4"
+  },
   "skip_normalization": false
 }
 ```
 
 **Configuration Sections:**
 
-- **tts_engine**: Choose TTS engine: `"orpheus"` or `"kokoro"`
-  - Orpheus: Natural-sounding voices, larger models, GPU recommended
+- **tts_engine**: Currently uses `"kokoro"` TTS engine
   - Kokoro: Fast, lightweight, multi-language support, works well on CPU
 
 - **normalizer**: Controls text normalization (numbers, dates, currency → spoken form)
@@ -750,12 +728,20 @@ This creates `config.json` with the following structure:
 - **segmenter**: Controls how text is chunked for TTS
   - See `SpacySegmenterConfig` for available options
 
-- **tts**: Controls speech synthesis settings (depends on `tts_engine`)
-  - For Orpheus: See `OrpheusTTSConfig` for available options
-  - For Kokoro: See `KokoroTTSConfig` for available options
+- **tts**: Controls Kokoro speech synthesis settings
+  - See `KokoroTTSConfig` for available options
 
 - **stitcher**: Controls how audio chunks are combined
   - See `PydubStitcherConfig` for available options
+
+- **m4b_tool_args**: Arguments passed to m4b-tool for M4B creation (optional, only used with `--isbn`)
+  - Keys are argument names without `--` prefix
+  - Values are argument values, or empty string `""` for flags without values
+  - Common arguments:
+    - `"audio-bitrate"`: Audio bitrate for M4B (e.g., `"64k"`, `"128k"`)
+    - `"use-filenames-as-chapters"`: Use chunk filenames as chapter names (empty string value)
+    - `"jobs"`: Number of parallel jobs (e.g., `"4"`)
+  - Book metadata (title, author, year) are automatically fetched from ISBN
 
 - **skip_normalization**: Set to `true` to skip the normalization step
 
@@ -890,24 +876,6 @@ This will:
 | `input_case` | `str` | `"cased"` | Input text case handling: 'cased' or 'lower_cased' |
 | `cache_dir` | `Optional[str]` | `None` | Directory to cache normalization grammars |
 | `verbose` | `bool` | `False` | Whether to print verbose normalization info |
-
-### OrpheusTTSConfig
-
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `language` | `str` | `"english"` | Language for TTS (english, french, spanish, italian) |
-| `voice` | `str` | Language-specific | Voice to use (auto-selected based on language if not specified) |
-| `use_gpu` | `bool` | `True` | Whether to use GPU acceleration (Metal on macOS, CUDA on Linux) |
-| `n_gpu_layers` | `int` | `-1` | Number of model layers to offload to GPU (-1 = all, 0 = CPU only) |
-| `verbose` | `bool` | `False` | Whether to print verbose TTS info |
-| `model_path` | `Optional[str]` | `None` | Explicit model path (auto-detected from language if None) |
-
-**Available Voices by Language:**
-
-- **English**: tara (default), leah, jess, leo, dan, mia, zac, zoe
-- **French**: marie (default), pierre, amelie
-- **Spanish**: maria (default), javi, sergio
-- **Italian**: giulia (default), pietro, carlo
 
 ### KokoroTTSConfig
 

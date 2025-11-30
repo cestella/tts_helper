@@ -5,6 +5,11 @@ from pathlib import Path
 from typing import List, Optional
 
 try:
+    import spacy
+except ImportError:
+    spacy = None
+
+try:
     import ebooklib
     from ebooklib import epub
     import trafilatura
@@ -13,7 +18,7 @@ except ImportError:
     epub = None
     trafilatura = None
 
-from .text_normalizer import normalize_text_for_tts
+from .text_normalizer import normalize_text_for_tts, add_periods_to_headings
 
 
 def safe_filename(name: str, default: str = "chapter") -> str:
@@ -61,12 +66,15 @@ def _normalize_text_for_tts(text: str, language_hint: Optional[str] = None) -> s
     return normalize_text_for_tts(text, language_hint=language_hint)
 
 
-def extract_text_from_html(html_content: str) -> tuple[Optional[str], str]:
+def extract_text_from_html(html_content: str, language_hint: str = "en") -> tuple[Optional[str], str]:
     """Extract title and text from HTML content using trafilatura."""
     if trafilatura is None:
         raise ImportError(
             "trafilatura is required for EPUB extraction. Install with: pip install trafilatura"
         )
+
+    # Add periods to headings for better sentence segmentation
+    html_content = add_periods_to_headings(html_content)
 
     # Extract cleaned text and metadata
     meta = trafilatura.extract_metadata(html_content)
@@ -86,7 +94,9 @@ def extract_text_from_html(html_content: str) -> tuple[Optional[str], str]:
     if not title:
         title = _extract_heading_title(html_content)
 
-    normalized_text = _normalize_text_for_tts(text, language_hint=language)
+    normalized_text = _sentences_per_line(
+        _normalize_text_for_tts(text, language_hint=language_hint or language),
+    )
 
     return title, normalized_text
 
@@ -95,6 +105,7 @@ def extract_epub_chapters(
     epub_path: Path,
     output_dir: Path,
     verbose: bool = False,
+    language_hint: str = "en",
 ) -> List[Path]:
     """Extract chapters from an EPUB file with lexicographic naming.
 
@@ -161,7 +172,7 @@ def extract_epub_chapters(
                 continue
 
             # Extract title and text
-            title, text = extract_text_from_html(content.decode("utf-8"))
+            title, text = extract_text_from_html(content.decode("utf-8"), language_hint=language_hint)
 
             # Skip if no meaningful text
             if not text or len(text.strip()) < 50:
@@ -205,3 +216,31 @@ def extract_epub_chapters(
         print(f"\nExtracted {len(extracted_files)} chapters to {output_dir}")
 
     return extracted_files
+
+
+def _sentences_per_line(text: str) -> str:
+    """Segment text into sentences (one per line), preferring spaCy."""
+    if not text.strip():
+        return ""
+
+    if spacy is None:
+        sentences = re.split(r"(?<=[.!?])\s+", text.strip())
+        sentences = [s.strip() for s in sentences if s.strip()]
+        return "\n".join(sentences)
+
+    try:
+        try:
+            nlp = spacy.blank("en")
+        except Exception:
+            nlp = spacy.blank("xx")
+
+        if "sentencizer" not in nlp.pipe_names:
+            nlp.add_pipe("sentencizer")
+
+        doc = nlp(text)
+        sentences = [" ".join(sent.text.split()) for sent in doc.sents if sent.text.strip()]
+        return "\n".join(sentences)
+    except Exception:
+        sentences = re.split(r"(?<=[.!?])\s+", text.strip())
+        sentences = [s.strip() for s in sentences if s.strip()]
+        return "\n".join(sentences)

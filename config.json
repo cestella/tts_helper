@@ -1,30 +1,29 @@
 {
   "tts_engine": "kokoro",
   "normalizer": {
-    "language": "en",
+    "language": "english",
     "input_case": "cased",
     "verbose": false
   },
   "segmenter": {
-    "language": "en",
+    "language": "english",
     "strategy": "char_count",
     "max_chars": 300,
+    "min_chars": 3,
     "sentences_per_chunk": 3
   },
   "tts": {
-    "language": "en-us",
+    "language": "english",
     "voice": "am_onyx",
     "speed": 1.0,
     "verbose": false
   },
   "enhancer": {
     "type": "translation",
-    "probability": 0.5,
-    "target_language": "Italian",
-    "target_lang_code": "ita_Latn",
-    "source_lang_code": "eng_Latn",
+    "probability": 0.08,
+    "source_language": "english",
+    "target_language": "italian",
     "translation_voice": "im_nicola",
-    "translation_language": "it",
     "translation_speed": 0.7,
     "pause_before_ms": 300,
     "pause_after_ms": 300,
@@ -38,6 +37,11 @@
     "crossfade_duration_ms": 0,
     "output_format": "mp3",
     "export_bitrate": "192k"
+  },
+  "m4b_tool_args": {
+    "audio-bitrate": "64k",
+    "use-filenames-as-chapters": "",
+    "jobs": "4"
   },
   "skip_normalization": false
 }

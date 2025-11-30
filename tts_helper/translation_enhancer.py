@@ -157,6 +157,53 @@ class TranslationEnhancer(Enhancer):
             _ = self.model  # Trigger model loading which also loads tokenizer
         return self._tokenizer
 
+    def _is_translation_valid(self, original: str, translation: str) -> bool:
+        """Validate translation to detect runaway or repetitive translations.
+
+        Args:
+            original: Original text
+            translation: Translated text
+
+        Returns:
+            True if translation is valid, False if it should be discarded
+        """
+        # Check if translation is empty
+        if not translation or not translation.strip():
+            return False
+
+        # Check if translation is excessively longer than original (more than 3x)
+        # This catches runaway generations
+        if len(translation) > len(original) * 3:
+            if self.config.verbose:
+                print(
+                    f"  ⚠️  Translation too long ({len(translation)} chars vs {len(original)} chars), skipping"
+                )
+            return False
+
+        # Check for repetitive patterns (same 5-word sequence appears 3+ times)
+        words = translation.split()
+        if len(words) >= 15:  # Only check if enough words
+            for i in range(len(words) - 4):
+                pattern = " ".join(words[i:i + 5])
+                # Count occurrences of this 5-word pattern
+                count = translation.count(pattern)
+                if count >= 3:
+                    if self.config.verbose:
+                        print(
+                            f"  ⚠️  Detected repetitive pattern '{pattern[:30]}...', skipping translation"
+                        )
+                    return False
+
+        # Check absolute maximum length (2000 chars to be safe for TTS)
+        if len(translation) > 2000:
+            if self.config.verbose:
+                print(
+                    f"  ⚠️  Translation exceeds 2000 chars ({len(translation)} chars), skipping"
+                )
+            return False
+
+        return True
+
     def _translate(self, text: str) -> Optional[str]:
         """Translate text using NLLB model.
 
@@ -164,7 +211,7 @@ class TranslationEnhancer(Enhancer):
             text: Text to translate
 
         Returns:
-            Translated text, or None if translation failed
+            Translated text, or None if translation failed or invalid
         """
         try:
             # Set source language and tokenize input text
@@ -194,9 +241,13 @@ class TranslationEnhancer(Enhancer):
                 translated_tokens, skip_special_tokens=True
             )[0]
 
+            # Validate translation before returning
+            if not self._is_translation_valid(text, translation):
+                return None
+
             if self.config.verbose:
                 print(
-                    f"  Translated to {self.config.target_language}: {translation[:50]}..."
+                    f"  ✓ Translated to {self.config.target_language}: {translation[:50]}..."
                 )
 
             return translation

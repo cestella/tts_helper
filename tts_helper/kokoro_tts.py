@@ -274,52 +274,6 @@ class KokoroTTS(TTS):
             # Return silence for empty text
             return 24000, np.array([], dtype=np.float32)
 
-        # Safety check: Kokoro has issues with very long text (>510 phonemes)
-        # If text is too long, split it and concatenate the results
-        MAX_SAFE_CHARS = 150  # Conservative limit to avoid phoneme overflow
-        if len(text) > MAX_SAFE_CHARS:
-            import warnings
-            import sys
-            msg = (
-                f"Text is {len(text)} chars (>{MAX_SAFE_CHARS}). "
-                f"Splitting into smaller parts..."
-            )
-            print(f"\n⚠️  {msg}", file=sys.stderr)
-            warnings.warn(msg)
-            # Split on sentence boundaries if possible
-            sentences = text.split('. ')
-            audio_parts = []
-            current_text = ""
-
-            for i, sent in enumerate(sentences):
-                # Add period back except for last sentence
-                sent = sent + '.' if i < len(sentences) - 1 else sent
-
-                if len(current_text) + len(sent) <= MAX_SAFE_CHARS:
-                    current_text += (' ' if current_text else '') + sent
-                else:
-                    # Process accumulated text
-                    if current_text:
-                        print(f"  📢 Synthesizing part {len(audio_parts)+1}/{len(sentences)} ({len(current_text)} chars)...", file=sys.stderr)
-                        _, audio = self.synthesize(current_text)
-                        audio_parts.append(audio)
-                    current_text = sent
-
-            # Process remaining text
-            if current_text:
-                print(f"  📢 Synthesizing final part ({len(current_text)} chars)...", file=sys.stderr)
-                _, audio = self.synthesize(current_text)
-                audio_parts.append(audio)
-
-            print(f"✅ Combined {len(audio_parts)} parts into single audio", file=sys.stderr)
-
-            # Concatenate all audio parts
-            if audio_parts:
-                combined_audio = np.concatenate(audio_parts)
-                return 24000, combined_audio
-            else:
-                return 24000, np.array([], dtype=np.float32)
-
         # Synthesize using Kokoro
         try:
             samples, sample_rate = self.engine.create(

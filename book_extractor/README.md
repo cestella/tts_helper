@@ -1,17 +1,17 @@
 # Book Extractor
 
-Extract chapters from EPUB and PDF books with lexicographic naming for easy ordering.
+Extract chapters from EPUB and Markdown books with lexicographic naming for easy ordering.
 
 ## Features
 
 - **EPUB Support**: Extract chapters from EPUB files with automatic title detection
-- **PDF Support**: Extract chapters from PDF files using table of contents or markdown conversion
+- **Markdown Support**: Split markdown files into chapters using a configurable regex pattern
 - **Lexicographic Naming**: Chapters are named with 4-digit prefixes for proper ordering (e.g., `0001_chapter_name.txt`)
 - **Multiple Extraction Strategies**:
   - EPUB: Uses document structure and heading tags
-  - PDF: Uses TOC, markdown conversion, or page-by-page extraction
+  - Markdown: Uses regex boundaries (defaults to top-level headings)
 - **Duplicate Handling**: Automatically handles duplicate chapter titles
-- **Clean Text Output**: Uses `trafilatura` plus lightweight spaCy sentence normalization for TTS-ready text
+- **Clean Text Output**: Uses `trafilatura` plus spaCy sentence normalization for TTS-ready text (one sentence per line where applicable)
 
 ## Installation
 
@@ -21,11 +21,8 @@ Install the optional dependencies for book extraction:
 # For EPUB support
 pip install ebooklib trafilatura
 
-# For PDF support
-pip install pymupdf
-
-# For better PDF extraction (optional)
-pip install pymupdf4llm
+# For Markdown support
+pip install markdown beautifulsoup4
 ```
 
 Or install all at once from the main requirements.txt.
@@ -38,11 +35,9 @@ Or install all at once from the main requirements.txt.
 # Extract EPUB chapters
 python -m book_extractor book.epub --output chapters/
 
-# Extract PDF chapters
-python -m book_extractor book.pdf --output chapters/
-
-# Extract PDF without using TOC (page-by-page)
-python -m book_extractor book.pdf --output chapters/ --no-toc
+# Extract Markdown chapters with a custom boundary regex
+python -m book_extractor book.md --output chapters/ --chapter-pattern "^CHAPTER \\d+"
+python -m book_extractor book.md --output chapters/ --language es  # language hint
 
 # Verbose output
 python -m book_extractor book.epub --output chapters/ --verbose
@@ -52,7 +47,7 @@ python -m book_extractor book.epub --output chapters/ --verbose
 
 ```python
 from pathlib import Path
-from book_extractor import extract_epub_chapters, extract_pdf_chapters
+from book_extractor import extract_epub_chapters, extract_markdown_chapters
 
 # Extract EPUB
 files = extract_epub_chapters(
@@ -61,11 +56,11 @@ files = extract_epub_chapters(
     verbose=True
 )
 
-# Extract PDF
-files = extract_pdf_chapters(
-    pdf_path=Path("book.pdf"),
+# Extract Markdown
+files = extract_markdown_chapters(
+    md_path=Path("book.md"),
     output_dir=Path("chapters/"),
-    use_toc=True,  # Use table of contents
+    chapter_pattern=r"^# .+",  # Top-level headings
     verbose=True
 )
 
@@ -86,15 +81,15 @@ Chapters are saved as text files with lexicographic naming:
 
 This ensures proper ordering when files are listed alphabetically, making them easy to process sequentially with other tools like `tts_helper`.
 
-## PDF Extraction Strategies
+## Markdown Extraction
 
-The PDF extractor uses multiple strategies in order of preference:
+Markdown extraction splits chapters using a regex boundary pattern:
 
-1. **Table of Contents (TOC)**: If the PDF has a TOC, chapters are extracted based on level-1 headings
-2. **Markdown Conversion**: If `pymupdf4llm` is installed, uses markdown conversion for better structure
-3. **Page-by-page**: Falls back to extracting each page as a separate file
-
-You can skip TOC extraction with the `--no-toc` flag or `use_toc=False` parameter.
+- Default pattern: `^# .+` (top-level headings)
+- Custom pattern: pass `--chapter-pattern "your-regex"`; the matched line is used as the title, and an optional capture group is used if present.
+- If no matches are found, the entire document is saved as a single chapter.
+- Markdown content is rendered to text (requires `markdown` + `beautifulsoup4`) so headings/links/code fences are stripped before normalization.
+- Sentences are re-segmented (spaCy if available, otherwise regex) and written one per line for cleaner downstream processing.
 
 ## Examples
 
@@ -125,6 +120,5 @@ python -m tts_helper chapters/0001_*.txt --config config.json --output chapter1.
 ## Dependencies
 
 - **EPUB**: `ebooklib`, `trafilatura`
-- **PDF**: `pymupdf` (provides `fitz` module)
-- **PDF (enhanced)**: `pymupdf4llm` (optional, for better text extraction)
+- **Markdown**: `markdown`, `beautifulsoup4`
 - **Sentence normalization (optional)**: `spacy` (used if installed; falls back to whitespace cleanup)

@@ -51,6 +51,7 @@ def process_audiobook(
     keep_chunks: bool = False,
     verbose: bool = False,
     chunk_progress: Optional[Any] = None,
+    isbn: Optional[str] = None,
 ) -> None:
     """Process text file to audiobook using the complete pipeline.
 
@@ -61,6 +62,7 @@ def process_audiobook(
         keep_chunks: Whether to keep individual chunk files
         verbose: Whether to print verbose progress info
         chunk_progress: Optional tqdm progress bar for chunk progress
+        isbn: Optional ISBN for M4B metadata (enables M4B creation)
     """
     from tts_helper import (
         Chunk,
@@ -68,8 +70,6 @@ def process_audiobook(
         NemoNormalizerConfig,
         SpacySegmenter,
         SpacySegmenterConfig,
-        OrpheusTTS,
-        OrpheusTTSConfig,
         KokoroTTS,
         KokoroTTSConfig,
         PydubStitcher,
@@ -80,12 +80,19 @@ def process_audiobook(
 
     config = config or {}
 
+    # Check if output already exists
+    if output_path.exists():
+        if verbose:
+            print(f"Output already exists: {output_path}")
+            print("Skipping processing")
+        return
+
     # Extract component configs
     normalizer_config_dict = config.get("normalizer", {})
     segmenter_config_dict = config.get("segmenter", {})
     tts_config_dict = config.get("tts", {})
     stitcher_config_dict = config.get("stitcher", {})
-    tts_engine = config.get("tts_engine", "orpheus").lower()
+    tts_engine = config.get("tts_engine", "kokoro").lower()
 
     # Step 1: Read input text
     if verbose:
@@ -131,6 +138,17 @@ def process_audiobook(
         avg_chars = total_chars / len(chunks) if chunks else 0
         print(f"  Average chunk size: {avg_chars:.0f} characters")
 
+        # Warn about oversized chunks
+        max_chunk = max((len(c.text) for c in chunks), default=0)
+        if max_chunk > segmenter_config.max_chars:
+            import sys
+            print(
+                f"\n⚠️  WARNING: Found chunk with {max_chunk} chars "
+                f"(max_chars is {segmenter_config.max_chars})!",
+                file=sys.stderr
+            )
+            print("  This indicates a segmenter bug. Chunk will be handled by TTS safety net.", file=sys.stderr)
+
     # Step 3.5: Enhance chunks (optional)
     enhancer_config_dict = config.get("enhancer", {})
     if enhancer_config_dict:
@@ -162,15 +180,12 @@ def process_audiobook(
         print(f"Synthesizing speech using {tts_engine.upper()} TTS...")
 
     # Dynamically select TTS engine based on config
-    if tts_engine == "orpheus":
-        tts_config = OrpheusTTSConfig.from_dict(tts_config_dict)
-        tts = OrpheusTTS(tts_config)
-    elif tts_engine == "kokoro":
+    if tts_engine == "kokoro":
         tts_config = KokoroTTSConfig.from_dict(tts_config_dict)
         tts = KokoroTTS(tts_config)
     else:
         print(
-            f"Error: Unknown TTS engine '{tts_engine}'. Supported engines: 'orpheus', 'kokoro'",
+            f"Error: Unknown TTS engine '{tts_engine}'. Supported engine: 'kokoro'",
             file=sys.stderr,
         )
         sys.exit(1)
@@ -194,8 +209,8 @@ def process_audiobook(
                     print(f"  Chunk {i}/{len(chunks)}: Silence ({chunk.silence_ms}ms)")
 
                 # Generate silence audio
-                # Use the same sample rate as TTS (typically 24000 for Kokoro, 22050 for Orpheus)
-                sample_rate = getattr(tts.config, 'sample_rate', 22050)
+                # Use the same sample rate as TTS (typically 24000 for Kokoro)
+                sample_rate = getattr(tts.config, 'sample_rate', 24000)
                 num_samples = int(sample_rate * chunk.silence_ms / 1000.0)
                 silence_audio = np.zeros(num_samples, dtype=np.float32)
 
@@ -290,6 +305,7 @@ def process_directory(
     config: Optional[Dict[str, Any]] = None,
     keep_chunks: bool = False,
     verbose: bool = False,
+    isbn: Optional[str] = None,
 ) -> None:
     """Process all text files in a directory to audiobooks.
 
@@ -299,6 +315,7 @@ def process_directory(
         config: Configuration dictionary (None = use defaults)
         keep_chunks: Whether to keep individual chunk files
         verbose: Whether to print verbose progress info
+        isbn: Optional ISBN for M4B metadata (enables M4B creation)
     """
     # Find all .txt files and sort them
     txt_files = sorted(input_dir.glob("*.txt"))
@@ -327,6 +344,47 @@ def process_directory(
 
     if not files_to_process:
         print("All files already processed!")
+
+        # Still check if M4B needs to be created
+        if isbn:
+            from tts_helper.m4b_creator import M4bCreator, M4bCreatorConfig
+
+            m4b_config_dict = config.get("m4b_tool_args", {})
+            m4b_config = M4bCreatorConfig(m4b_tool_args=m4b_config_dict)
+            m4b_creator = M4bCreator(m4b_config)
+
+            try:
+                # Fetch metadata to determine M4B filename
+                metadata = m4b_creator._fetch_metadata(isbn)
+                filename = m4b_creator._sanitize_filename(metadata["title"])
+                m4b_output_dir = output_dir.parent
+                m4b_file = m4b_output_dir / f"{filename}.m4b"
+
+                # Check if M4B already exists
+                if m4b_file.exists():
+                    print(f"M4B already exists: {m4b_file}")
+                else:
+                    # Create M4B from output directory
+                    print(f"\nCreating M4B audiobook from {len(txt_files)} chapters...")
+
+                    m4b_file = m4b_creator.create_m4b(
+                        isbn=isbn,
+                        chapters_dir=output_dir,
+                        output_parent_dir=m4b_output_dir,
+                        verbose=verbose,
+                    )
+
+                    m4b_size_mb = m4b_file.stat().st_size / (1024 * 1024)
+                    print(f"\nM4B audiobook complete!")
+                    print(f"  M4B Output: {m4b_file}")
+                    print(f"  M4B Size: {m4b_size_mb:.1f} MB")
+
+            except Exception as e:
+                print(f"\nWarning: M4B creation failed: {e}", file=sys.stderr)
+                if verbose:
+                    import traceback
+                    traceback.print_exc()
+
         return
 
     # Process files with progress bars (if not verbose)
@@ -340,7 +398,48 @@ def process_directory(
                 config=config,
                 keep_chunks=keep_chunks,
                 verbose=verbose,
+                isbn=None,  # Don't create M4B for individual files in directory mode
             )
+
+        # After processing all files, create M4B if ISBN provided
+        if isbn:
+            from tts_helper.m4b_creator import M4bCreator, M4bCreatorConfig
+
+            m4b_config_dict = config.get("m4b_tool_args", {})
+            m4b_config = M4bCreatorConfig(m4b_tool_args=m4b_config_dict)
+            m4b_creator = M4bCreator(m4b_config)
+
+            try:
+                # Fetch metadata to determine M4B filename
+                metadata = m4b_creator._fetch_metadata(isbn)
+                filename = m4b_creator._sanitize_filename(metadata["title"])
+                m4b_output_dir = output_dir.parent
+                m4b_file = m4b_output_dir / f"{filename}.m4b"
+
+                # Check if M4B already exists
+                if m4b_file.exists():
+                    print(f"\nM4B already exists: {m4b_file}")
+                else:
+                    # Create M4B from output directory (which contains all the MP3s)
+                    print(f"\nCreating M4B audiobook from {len(txt_files)} chapters...")
+
+                    m4b_file = m4b_creator.create_m4b(
+                        isbn=isbn,
+                        chapters_dir=output_dir,
+                        output_parent_dir=m4b_output_dir,
+                        verbose=verbose,
+                    )
+
+                    m4b_size_mb = m4b_file.stat().st_size / (1024 * 1024)
+                    print(f"\nM4B audiobook complete!")
+                    print(f"  M4B Output: {m4b_file}")
+                    print(f"  M4B Size: {m4b_size_mb:.1f} MB")
+
+            except Exception as e:
+                print(f"\nWarning: M4B creation failed: {e}", file=sys.stderr)
+                if verbose:
+                    import traceback
+                    traceback.print_exc()
     else:
         # Non-verbose mode - use progress bars
         file_progress = tqdm(
@@ -413,9 +512,47 @@ def process_directory(
                     keep_chunks=keep_chunks,
                     verbose=False,
                     chunk_progress=chunk_progress,
+                    isbn=None,  # Don't create M4B for individual files in directory mode
                 )
             finally:
                 chunk_progress.close()
+
+        # After processing all files, create M4B if ISBN provided
+        if isbn:
+            from tts_helper.m4b_creator import M4bCreator, M4bCreatorConfig
+
+            m4b_config_dict = config.get("m4b_tool_args", {})
+            m4b_config = M4bCreatorConfig(m4b_tool_args=m4b_config_dict)
+            m4b_creator = M4bCreator(m4b_config)
+
+            try:
+                # Fetch metadata to determine M4B filename
+                metadata = m4b_creator._fetch_metadata(isbn)
+                filename = m4b_creator._sanitize_filename(metadata["title"])
+                m4b_output_dir = output_dir.parent
+                m4b_file = m4b_output_dir / f"{filename}.m4b"
+
+                # Check if M4B already exists
+                if m4b_file.exists():
+                    print(f"\nM4B already exists: {m4b_file}")
+                else:
+                    # Create M4B from output directory (which contains all the MP3s)
+                    print(f"\nCreating M4B audiobook from {len(txt_files)} chapters...")
+
+                    m4b_file = m4b_creator.create_m4b(
+                        isbn=isbn,
+                        chapters_dir=output_dir,
+                        output_parent_dir=m4b_output_dir,
+                        verbose=True,
+                    )
+
+                    m4b_size_mb = m4b_file.stat().st_size / (1024 * 1024)
+                    print(f"\nM4B audiobook complete!")
+                    print(f"  M4B Output: {m4b_file}")
+                    print(f"  M4B Size: {m4b_size_mb:.1f} MB")
+
+            except Exception as e:
+                print(f"\nWarning: M4B creation failed: {e}", file=sys.stderr)
 
 
 def create_default_config() -> Dict[str, Any]:
@@ -425,7 +562,7 @@ def create_default_config() -> Dict[str, Any]:
         Default configuration for all pipeline components
     """
     return {
-        "tts_engine": "orpheus",  # Options: "orpheus" or "kokoro"
+        "tts_engine": "kokoro",
         "normalizer": {
             "language": "en",
             "input_case": "cased",
@@ -438,23 +575,22 @@ def create_default_config() -> Dict[str, Any]:
             "sentences_per_chunk": 3,
         },
         "tts": {
-            # Orpheus TTS config (if tts_engine is "orpheus"):
-            "language": "english",  # english, french, spanish, italian
-            "voice": "tara",  # tara, leah, jess, leo, dan, mia, zac, zoe
-            "use_gpu": True,
-            "n_gpu_layers": -1,
+            # Kokoro TTS config:
+            "language": "english",  # english, french, italian, japanese, chinese
+            "voice": "af_sarah",  # See README for full voice list
+            "speed": 1.0,  # 0.5 to 2.0
             "verbose": False,
-            # Kokoro TTS config (if tts_engine is "kokoro"):
-            # "language": "en-us",  # en-us, en-gb, fr-fr, it, ja, cmn
-            # "voice": "af_sarah",  # See README for full voice list
-            # "speed": 1.0,  # 0.5 to 2.0
-            # "verbose": False,
         },
         "stitcher": {
             "silence_duration_ms": 750,
             "crossfade_duration_ms": 0,
             "output_format": "mp3",
             "export_bitrate": "192k",
+        },
+        "m4b_tool_args": {
+            "audio-bitrate": "64k",
+            "use-filenames-as-chapters": "",
+            "jobs": "4",
         },
         "skip_normalization": False,
     }
@@ -467,7 +603,7 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Basic usage with defaults
+  # Single file usage
   python -m tts_helper input.txt --output audiobook.mp3
 
   # With custom configuration
@@ -476,13 +612,16 @@ Examples:
   # Generate default config file
   python -m tts_helper --create-config
 
+  # Process directory of chapters to M4B audiobook
+  python -m tts_helper chapters_dir/ --output audiobooks/ --isbn 978-0-441-00731-2
+
   # Keep intermediate chunk files
   python -m tts_helper input.txt --output audiobook.mp3 --keep-chunks
 
   # Verbose output
   python -m tts_helper input.txt --output audiobook.mp3 --verbose
 
-For more information, visit: https://github.com/yourusername/tts_helper
+For more information, visit: https://github.com/cestella/tts_helper
         """,
     )
 
@@ -526,6 +665,12 @@ For more information, visit: https://github.com/yourusername/tts_helper
         help="Print verbose progress information",
     )
 
+    parser.add_argument(
+        "--isbn",
+        type=str,
+        help="ISBN for audiobook metadata (enables M4B creation, directory mode only)",
+    )
+
     args = parser.parse_args()
 
     # Handle --create-config
@@ -538,10 +683,10 @@ For more information, visit: https://github.com/yourusername/tts_helper
 
         print(f"Created default configuration: {config_path}")
         print("\nEdit this file to customize:")
-        print("  - tts_engine: Choose 'orpheus' or 'kokoro' TTS engine")
+        print("  - tts_engine: Currently uses 'kokoro' TTS engine")
         print("  - normalizer: Text normalization settings")
         print("  - segmenter: Text chunking settings")
-        print("  - tts: Speech synthesis settings (depends on tts_engine)")
+        print("  - tts: Kokoro speech synthesis settings")
         print("  - stitcher: Audio stitching settings")
         print("\nNote: See README for TTS engine differences and voice options")
         sys.exit(0)
@@ -582,6 +727,7 @@ For more information, visit: https://github.com/yourusername/tts_helper
                 config=config,
                 keep_chunks=args.keep_chunks,
                 verbose=args.verbose,
+                isbn=args.isbn,
             )
         else:
             # Single file mode
@@ -591,6 +737,7 @@ For more information, visit: https://github.com/yourusername/tts_helper
                 config=config,
                 keep_chunks=args.keep_chunks,
                 verbose=args.verbose,
+                isbn=args.isbn,
             )
     except KeyboardInterrupt:
         print("\n\nInterrupted by user", file=sys.stderr)

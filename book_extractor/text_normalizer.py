@@ -1,11 +1,30 @@
 """Utilities for cleaning and normalizing text for TTS pipelines."""
 
+import re
 from typing import Optional
 
 try:
     import spacy
 except ImportError:
     spacy = None
+
+
+def add_periods_to_headings(html_content: str) -> str:
+    """Add periods to heading tags that don't already end with punctuation."""
+    def add_period_to_heading(match):
+        level = match.group(1)
+        attrs = match.group(2)
+        text = match.group(3).strip()
+
+        # Only add period if heading doesn't already end with punctuation
+        if text and not re.search(r'[.!?]$', text):
+            text = text + '.'
+
+        return f'<h{level}{attrs}>{text}</h{level}>'
+
+    # Match h1-h6 tags and add periods to their content
+    pattern = r'<h([1-6])([^>]*)>(.*?)</h\1>'
+    return re.sub(pattern, add_period_to_heading, html_content, flags=re.IGNORECASE | re.DOTALL)
 
 
 def _normalize_language_code(language_hint: Optional[str]) -> str:

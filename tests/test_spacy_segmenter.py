@@ -37,7 +37,7 @@ class TestSpacySegmenterConfig:
 
     def test_invalid_language_raises_error(self):
         """Test that invalid language raises ValueError."""
-        with pytest.raises(ValueError, match="not supported"):
+        with pytest.raises(ValueError, match="not recognized"):
             SpacySegmenterConfig(language="invalid_lang")
 
     def test_negative_max_chars_raises_error(self):
@@ -166,9 +166,13 @@ class TestSpacySegmenter:
         text = "This is a very long sentence that exceeds the maximum character limit."
         chunks = segmenter.segment(text)
 
-        # Should return the long sentence as a single chunk
-        assert len(chunks) == 1
-        assert chunks[0].strip() == text
+        # Should split the long sentence into multiple chunks
+        assert len(chunks) > 1
+        # All chunks must be within max_chars limit
+        for chunk in chunks:
+            assert len(chunk) <= config.max_chars
+        # All chunks together should contain the original text (minus extra whitespace)
+        assert " ".join(chunks).replace("  ", " ") == text
 
     def test_segment_multiple_sentences(self):
         """Test segmentation with multiple sentences."""
@@ -274,14 +278,14 @@ class TestSpacySegmenter:
     def test_config_from_dict(self):
         """Test creating segmenter from dict config."""
         config_dict = {
-            "language": "en",
+            "language": "english",
             "max_chars": 200,
             "disable_pipes": ["ner"],
         }
         config = SpacySegmenterConfig.from_dict(config_dict)
         segmenter = SpacySegmenter(config)
 
-        assert segmenter.config.language == "en"
+        assert segmenter.config.language == "english"
         assert segmenter.config.max_chars == 200
 
     def test_sentence_count_strategy(self):

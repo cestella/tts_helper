@@ -11,12 +11,6 @@ from .nemo_normalizer import NemoNormalizer, NemoNormalizerConfig
 from .segmenter import Segmenter, SegmenterConfig
 from .spacy_segmenter import SpacySegmenter, SpacySegmenterConfig
 from .tts import TTS, TTSConfig
-from .orpheus_tts import (
-    OrpheusTTS,
-    OrpheusTTSConfig,
-    get_supported_voices as get_orpheus_voices,
-    get_default_voice as get_orpheus_default_voice,
-)
 from .kokoro_tts import (
     KokoroTTS,
     KokoroTTSConfig,
@@ -46,11 +40,6 @@ __all__ = [
     # Text-to-Speech
     "TTS",
     "TTSConfig",
-    # Orpheus TTS
-    "OrpheusTTS",
-    "OrpheusTTSConfig",
-    "get_orpheus_voices",
-    "get_orpheus_default_voice",
     # Kokoro TTS
     "KokoroTTS",
     "KokoroTTSConfig",
