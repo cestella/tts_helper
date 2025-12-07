@@ -7,30 +7,20 @@
   },
   "segmenter": {
     "language": "english",
-    "strategy": "char_count",
+    "strategy": "sentence_count",
     "max_chars": 300,
     "min_chars": 3,
-    "sentences_per_chunk": 3
+    "sentences_per_chunk": 1
   },
   "tts": {
-    "language": "english",
-    "voice": "am_onyx",
+    "language": "english-gb",
+    "voice": "bf_vale",
     "speed": 1.0,
-    "verbose": false
-  },
-  "enhancer": {
-    "type": "translation",
-    "probability": 0.08,
-    "source_language": "english",
-    "target_language": "italian",
-    "translation_voice": "im_nicola",
-    "translation_speed": 0.7,
-    "pause_before_ms": 300,
-    "pause_after_ms": 300,
-    "model_id": "facebook/nllb-200-distilled-600M",
-    "max_length": 500,
-    "device": "cpu",
-    "verbose": true
+    "verbose": false,
+    "model_path": "kokoro-v1.1-zh.onnx",
+    "voices_path": "voices-v1.1-zh.bin",
+    "model_url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/kokoro-v1.1-zh.onnx",
+    "voices_url": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1/voices-v1.1-zh.bin"
   },
   "stitcher": {
     "silence_duration_ms": 300,

@@ -23,6 +23,7 @@ class PydubStitcherConfig(StitcherConfig):
         output_format: Output audio format (default: "wav")
         export_bitrate: Bitrate for lossy formats like mp3 (default: "192k")
         sample_rate: Sample rate for output (default: None, uses source rate)
+        end_indicator: Add musical chapter end indicator (default: False)
     """
 
     silence_duration_ms: int = 500
@@ -30,6 +31,7 @@ class PydubStitcherConfig(StitcherConfig):
     output_format: Literal["wav", "mp3", "ogg", "flac"] = "wav"
     export_bitrate: str = "192k"
     sample_rate: int | None = None
+    end_indicator: bool = False
 
     def __post_init__(self) -> None:
         """Validate configuration."""
@@ -184,28 +186,57 @@ class PydubStitcher(Stitcher):
             return self._AudioSegment.silent(duration=0)
 
         if len(segments) == 1:
-            return segments[0]
+            combined = segments[0]
+        else:
+            # Start with first segment
+            combined = segments[0]
 
-        # Start with first segment
-        combined = segments[0]
+            # Add remaining segments with silence or crossfade
+            for segment in segments[1:]:
+                if self.config.crossfade_duration_ms > 0:
+                    # Crossfade mode: overlapping transition
+                    combined = combined.append(
+                        segment, crossfade=self.config.crossfade_duration_ms
+                    )
+                elif self.config.silence_duration_ms > 0:
+                    # Silence mode: add gap between segments
+                    silence = self._AudioSegment.silent(
+                        duration=self.config.silence_duration_ms,
+                        frame_rate=combined.frame_rate,
+                    )
+                    combined = combined + silence + segment
+                else:
+                    # No gap: directly concatenate
+                    combined = combined + segment
 
-        # Add remaining segments with silence or crossfade
-        for segment in segments[1:]:
-            if self.config.crossfade_duration_ms > 0:
-                # Crossfade mode: overlapping transition
-                combined = combined.append(
-                    segment, crossfade=self.config.crossfade_duration_ms
+        # Add chapter end indicator if enabled
+        if self.config.end_indicator:
+            from .chapter_indicator import ChapterIndicatorGenerator
+
+            # Generate musical indicator at the same sample rate as the audio
+            generator = ChapterIndicatorGenerator(sample_rate=combined.frame_rate)
+            indicator_audio = generator.generate(verbose=False)
+
+            # Convert numpy array to AudioSegment via temporary file
+            with tempfile.TemporaryDirectory() as tmpdir:
+                from scipy.io.wavfile import write
+
+                temp_path = Path(tmpdir) / "indicator.wav"
+
+                # Convert float32 to int16
+                indicator_int16 = (np.clip(indicator_audio, -1.0, 1.0) * 32767).astype(
+                    np.int16
                 )
-            elif self.config.silence_duration_ms > 0:
-                # Silence mode: add gap between segments
+                write(str(temp_path), combined.frame_rate, indicator_int16)
+
+                # Load as AudioSegment and append
+                indicator_segment = self._AudioSegment.from_wav(str(temp_path))
+
+                # Add a small silence before the indicator
                 silence = self._AudioSegment.silent(
-                    duration=self.config.silence_duration_ms,
-                    frame_rate=combined.frame_rate,
+                    duration=300, frame_rate=combined.frame_rate
                 )
-                combined = combined + silence + segment
-            else:
-                # No gap: directly concatenate
-                combined = combined + segment
+                combined = combined + silence + indicator_segment
 
         return combined
 

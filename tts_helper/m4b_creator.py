@@ -84,12 +84,16 @@ class M4bCreator:
         print(f"  Title: {metadata['title']}")
         print(f"  Author(s): {metadata['authors']}")
         print(f"  Year: {metadata['year']}")
-        if metadata['publisher']:
+        if metadata["publisher"]:
             print(f"  Publisher: {metadata['publisher']}")
-        if metadata['language']:
+        if metadata["language"]:
             print(f"  Language: {metadata['language']}")
-        if metadata['description']:
-            desc_preview = metadata['description'][:100] + "..." if len(metadata['description']) > 100 else metadata['description']
+        if metadata["description"]:
+            desc_preview = (
+                metadata["description"][:100] + "..."
+                if len(metadata["description"]) > 100
+                else metadata["description"]
+            )
             print(f"  Description: {desc_preview}")
 
         # Sanitize title for filename

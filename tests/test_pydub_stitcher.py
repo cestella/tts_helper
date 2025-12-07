@@ -23,6 +23,7 @@ class TestPydubStitcherConfig:
         assert config.output_format == "wav"
         assert config.export_bitrate == "192k"
         assert config.sample_rate is None
+        assert config.end_indicator is False
 
     def test_custom_config(self) -> None:
         """Test custom configuration values."""
@@ -358,6 +359,60 @@ class TestPydubStitcherIntegration:
 
             output_path = tmpdir / "output_single.wav"
             stitcher.stitch([audio_files[0]], output_path)
+
+            assert output_path.exists()
+            assert output_path.stat().st_size > 0
+        except ImportError:
+            pytest.skip("pydub not installed")
+
+    def test_stitch_with_end_indicator(self, test_audio_files) -> None:  # type: ignore[no-untyped-def]
+        """Test stitching with chapter end indicator enabled."""
+        try:
+            tmpdir, audio_files = test_audio_files
+
+            # Test with end indicator enabled
+            config = PydubStitcherConfig(silence_duration_ms=300, end_indicator=True)
+            stitcher = PydubStitcher(config)
+
+            output_path = tmpdir / "output_with_indicator.wav"
+            stitcher.stitch(audio_files, output_path)
+
+            assert output_path.exists()
+            assert output_path.stat().st_size > 0
+
+            # Compare with version without indicator - should be longer
+            config_no_indicator = PydubStitcherConfig(silence_duration_ms=300)
+            stitcher_no_indicator = PydubStitcher(config_no_indicator)
+
+            output_path_no_indicator = tmpdir / "output_no_indicator.wav"
+            stitcher_no_indicator.stitch(audio_files, output_path_no_indicator)
+
+            # Output with indicator should be larger due to added musical tone
+            assert output_path.stat().st_size > output_path_no_indicator.stat().st_size
+        except ImportError:
+            pytest.skip("pydub not installed")
+
+    def test_stitch_from_arrays_with_end_indicator(
+        self, test_audio_files  # type: ignore[no-untyped-def]
+    ) -> None:
+        """Test stitching from arrays with chapter end indicator."""
+        try:
+            tmpdir, _ = test_audio_files
+
+            config = PydubStitcherConfig(silence_duration_ms=300, end_indicator=True)
+            stitcher = PydubStitcher(config)
+
+            # Create test arrays
+            sample_rate = 24000
+            arrays = []
+            for i in range(2):
+                duration = 0.5
+                t = np.linspace(0, duration, int(sample_rate * duration))
+                audio_data = np.sin(2 * np.pi * (440 + i * 100) * t).astype(np.float32)
+                arrays.append((sample_rate, audio_data))
+
+            output_path = tmpdir / "output_arrays_with_indicator.wav"
+            stitcher.stitch_from_arrays(arrays, output_path)
 
             assert output_path.exists()
             assert output_path.stat().st_size > 0

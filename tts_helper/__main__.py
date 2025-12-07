@@ -11,9 +11,12 @@ Usage:
 """
 
 import argparse
+import contextlib
 import json
+import os
 import sys
 import tempfile
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any
 
@@ -302,6 +305,38 @@ def process_audiobook(
             temp_context.__exit__(None, None, None)
 
 
+def _process_file_worker(
+    args: tuple[Path, Path, dict[str, Any], bool, int],
+) -> tuple[str, int]:
+    """Worker function for parallel file processing.
+
+    Args:
+        args: Tuple of (input_file, output_file, config, keep_chunks, worker_id)
+
+    Returns:
+        Tuple of (filename, worker_id) of successfully processed file
+
+    Raises:
+        Exception: Any error during processing (will be caught by executor)
+    """
+    input_file, output_file, config, keep_chunks, worker_id = args
+
+    # Print start message to stderr so it doesn't interfere with tqdm
+    print(f"Worker {worker_id}: Starting {input_file.name}", file=sys.stderr)
+
+    # Let exceptions propagate - they'll be captured by the executor
+    process_audiobook(
+        input_text_path=input_file,
+        output_path=output_file,
+        config=config,
+        keep_chunks=keep_chunks,
+        verbose=False,
+        chunk_progress=None,
+        isbn=None,
+    )
+    return (input_file.name, worker_id)
+
+
 def process_directory(
     input_dir: Path,
     output_dir: Path,
@@ -309,6 +344,7 @@ def process_directory(
     keep_chunks: bool = False,
     verbose: bool = False,
     isbn: str | None = None,
+    parallelism: int | None = None,
 ) -> None:
     """Process all text files in a directory to audiobooks.
 
@@ -319,6 +355,7 @@ def process_directory(
         keep_chunks: Whether to keep individual chunk files
         verbose: Whether to print verbose progress info
         isbn: Optional ISBN for M4B metadata (enables M4B creation)
+        parallelism: Number of parallel workers (None = use all CPU cores)
     """
     # Find all .txt files and sort them
     txt_files = sorted(input_dir.glob("*.txt"))
@@ -383,27 +420,79 @@ def process_directory(
                     print(f"  M4B Size: {m4b_size_mb:.1f} MB")
 
             except Exception as e:
-                print(f"\nWarning: M4B creation failed: {e}", file=sys.stderr)
+                print(f"\nError: M4B creation failed: {e}", file=sys.stderr)
                 if verbose:
                     import traceback
 
                     traceback.print_exc()
+                sys.exit(1)
 
         return
 
+    # Determine number of workers
+    num_workers = parallelism if parallelism is not None else os.cpu_count()
+    if num_workers is None:
+        num_workers = 1
+
     # Process files with progress bars (if not verbose)
     if verbose or not HAS_TQDM:
-        # Verbose mode - no progress bars
-        for i, (input_file, output_file) in enumerate(files_to_process, 1):
-            print(f"\n[{i}/{len(files_to_process)}] Processing: {input_file.name}")
-            process_audiobook(
-                input_text_path=input_file,
-                output_path=output_file,
-                config=config,
-                keep_chunks=keep_chunks,
-                verbose=verbose,
-                isbn=None,  # Don't create M4B for individual files in directory mode
+        # Verbose mode - sequential processing with verbose output
+        if parallelism == 1 or verbose:
+            # Single-threaded processing
+            for i, (input_file, output_file) in enumerate(files_to_process, 1):
+                print(f"\n[{i}/{len(files_to_process)}] Processing: {input_file.name}")
+                process_audiobook(
+                    input_text_path=input_file,
+                    output_path=output_file,
+                    config=config,
+                    keep_chunks=keep_chunks,
+                    verbose=verbose,
+                    isbn=None,  # Don't create M4B for individual files in directory mode
+                )
+        else:
+            # Parallel processing (no verbose per-file output in parallel mode)
+            print(
+                f"\nProcessing {len(files_to_process)} files with {num_workers} workers..."
             )
+
+            # Prepare arguments for worker processes with worker IDs
+            work_items = [
+                (input_file, output_file, config, keep_chunks, i % num_workers)
+                for i, (input_file, output_file) in enumerate(files_to_process)
+            ]
+
+            failed = False
+            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+                # Submit all tasks
+                futures = {
+                    executor.submit(_process_file_worker, item): item[0].name
+                    for item in work_items
+                }
+
+                # Process completions
+                for completed, future in enumerate(as_completed(futures), start=1):
+                    try:
+                        filename, worker_id = future.result()
+                        print(
+                            f"  [{completed}/{len(files_to_process)}] ✓ Worker {worker_id}: Completed {filename}"
+                        )
+                    except Exception as e:
+                        failed = True
+                        filename = futures[future]
+                        print(
+                            f"  [{completed}/{len(files_to_process)}] ✗ {filename}",
+                            file=sys.stderr,
+                        )
+                        print(f"    Error: {e}", file=sys.stderr)
+
+            if failed:
+                print(
+                    "\nProcessing failed - one or more chapters had errors",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
+
+            print(f"\nCompleted processing {len(files_to_process)} files")
 
         # After processing all files, create M4B if ISBN provided
         if isbn:
@@ -440,87 +529,132 @@ def process_directory(
                     print(f"  M4B Size: {m4b_size_mb:.1f} MB")
 
             except Exception as e:
-                print(f"\nWarning: M4B creation failed: {e}", file=sys.stderr)
+                print(f"\nError: M4B creation failed: {e}", file=sys.stderr)
                 if verbose:
                     import traceback
 
                     traceback.print_exc()
+                sys.exit(1)
     else:
         # Non-verbose mode - use progress bars
-        file_progress = tqdm(
-            files_to_process,
-            desc="Files",
-            unit="file",
-            position=0,
-            leave=True,
-        )
-
-        for input_file, output_file in file_progress:
-            file_progress.set_description(f"Files [{input_file.name}]")
-
-            # We need to count chunks first for the progress bar
-            # Do a quick segmentation to get chunk count
-            from tts_helper import Chunk, SpacySegmenter, SpacySegmenterConfig
-
-            # Read input text
-            with input_file.open("r", encoding="utf-8") as f:
-                input_text = f.read()
-
-            # Quick segmentation to count chunks
-            segmenter_config_dict = config.get("segmenter", {})
-            segmenter_config = SpacySegmenterConfig.from_dict(segmenter_config_dict)
-            segmenter = SpacySegmenter(segmenter_config)
-
-            # Handle normalization if needed
-            if not config.get("skip_normalization", False):
-                try:
-                    from tts_helper import NemoNormalizer, NemoNormalizerConfig
-
-                    normalizer_config_dict = config.get("normalizer", {})
-                    normalizer_config = NemoNormalizerConfig.from_dict(
-                        normalizer_config_dict
-                    )
-                    normalizer = NemoNormalizer(normalizer_config)
-                    input_text = normalizer.normalize(input_text)
-                except Exception:
-                    pass  # Skip normalization if it fails
-
-            text_chunks = segmenter.segment(input_text)
-
-            # Convert to Chunk objects for enhancement counting
-            chunks = [Chunk(text=text) for text in text_chunks]
-
-            # Account for enhancement potentially adding more chunks
-            enhancer_config_dict = config.get("enhancer", {})
-            if enhancer_config_dict.get("type") == "translation":
-                # Rough estimate: probability * chunks * 2 additional chunks per translation
-                probability = enhancer_config_dict.get("probability", 0.1)
-                estimated_additions = int(len(chunks) * probability * 2)
-                chunk_count = len(chunks) + estimated_additions
-            else:
-                chunk_count = len(chunks)
-
-            # Create chunk progress bar
-            chunk_progress = tqdm(
-                total=chunk_count,
-                desc="  Chunks",
-                unit="chunk",
-                position=1,
-                leave=False,
+        if num_workers == 1:
+            # Single-threaded with progress bars
+            file_progress = tqdm(
+                files_to_process,
+                desc="Files",
+                unit="file",
+                position=0,
+                leave=True,
             )
 
-            try:
-                process_audiobook(
-                    input_text_path=input_file,
-                    output_path=output_file,
-                    config=config,
-                    keep_chunks=keep_chunks,
-                    verbose=False,
-                    chunk_progress=chunk_progress,
-                    isbn=None,  # Don't create M4B for individual files in directory mode
+            for input_file, output_file in file_progress:
+                file_progress.set_description(f"Files [{input_file.name}]")
+
+                # We need to count chunks first for the progress bar
+                # Do a quick segmentation to get chunk count
+                from tts_helper import Chunk, SpacySegmenter, SpacySegmenterConfig
+
+                # Read input text
+                with input_file.open("r", encoding="utf-8") as f:
+                    input_text = f.read()
+
+                # Quick segmentation to count chunks
+                segmenter_config_dict = config.get("segmenter", {})
+                segmenter_config = SpacySegmenterConfig.from_dict(segmenter_config_dict)
+                segmenter = SpacySegmenter(segmenter_config)
+
+                # Handle normalization if needed
+                if not config.get("skip_normalization", False):
+                    try:
+                        from tts_helper import NemoNormalizer, NemoNormalizerConfig
+
+                        normalizer_config_dict = config.get("normalizer", {})
+                        normalizer_config = NemoNormalizerConfig.from_dict(
+                            normalizer_config_dict
+                        )
+                        normalizer = NemoNormalizer(normalizer_config)
+                        input_text = normalizer.normalize(input_text)
+                    except Exception:
+                        pass  # Skip normalization if it fails
+
+                text_chunks = segmenter.segment(input_text)
+
+                # Convert to Chunk objects for enhancement counting
+                chunks = [Chunk(text=text) for text in text_chunks]
+
+                # Account for enhancement potentially adding more chunks
+                enhancer_config_dict = config.get("enhancer", {})
+                if enhancer_config_dict.get("type") == "translation":
+                    # Rough estimate: probability * chunks * 2 additional chunks per translation
+                    probability = enhancer_config_dict.get("probability", 0.1)
+                    estimated_additions = int(len(chunks) * probability * 2)
+                    chunk_count = len(chunks) + estimated_additions
+                else:
+                    chunk_count = len(chunks)
+
+                # Create chunk progress bar
+                chunk_progress = tqdm(
+                    total=chunk_count,
+                    desc="  Chunks",
+                    unit="chunk",
+                    position=1,
+                    leave=False,
                 )
-            finally:
-                chunk_progress.close()
+
+                try:
+                    process_audiobook(
+                        input_text_path=input_file,
+                        output_path=output_file,
+                        config=config,
+                        keep_chunks=keep_chunks,
+                        verbose=False,
+                        chunk_progress=chunk_progress,
+                        isbn=None,  # Don't create M4B for individual files in directory mode
+                    )
+                finally:
+                    chunk_progress.close()
+        else:
+            # Parallel processing with simple progress bar
+            # Prepare arguments for worker processes with worker IDs
+            work_items = [
+                (input_file, output_file, config, keep_chunks, i % num_workers)
+                for i, (input_file, output_file) in enumerate(files_to_process)
+            ]
+
+            file_progress = tqdm(
+                total=len(files_to_process),
+                desc=f"Files ({num_workers} workers)",
+                unit="file",
+            )
+
+            failed = False
+            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+                # Submit all tasks
+                futures = {
+                    executor.submit(_process_file_worker, item): item[0].name
+                    for item in work_items
+                }
+
+                # Process completions
+                for future in as_completed(futures):
+                    try:
+                        filename, worker_id = future.result()
+                        file_progress.update(1)
+                        tqdm.write(f"Worker {worker_id}: Completed {filename}")
+                    except Exception as e:
+                        failed = True
+                        filename = futures[future]
+                        file_progress.update(1)
+                        tqdm.write(f"✗ Failed: {filename}: {e}", file=sys.stderr)
+
+            file_progress.close()
+
+            if failed:
+                print(
+                    "\nProcessing failed - one or more chapters had errors",
+                    file=sys.stderr,
+                )
+                sys.exit(1)
 
         # After processing all files, create M4B if ISBN provided
         if isbn:
@@ -557,7 +691,11 @@ def process_directory(
                     print(f"  M4B Size: {m4b_size_mb:.1f} MB")
 
             except Exception as e:
-                print(f"\nWarning: M4B creation failed: {e}", file=sys.stderr)
+                print(f"\nError: M4B creation failed: {e}", file=sys.stderr)
+                import traceback
+
+                traceback.print_exc()
+                sys.exit(1)
 
 
 def create_default_config() -> dict[str, Any]:
@@ -676,6 +814,14 @@ For more information, visit: https://github.com/cestella/tts_helper
         help="ISBN for audiobook metadata (enables M4B creation, directory mode only)",
     )
 
+    parser.add_argument(
+        "-p",
+        "--parallelism",
+        type=int,
+        default=None,
+        help="Number of parallel workers for processing chapters (default: use all CPU cores)",
+    )
+
     args = parser.parse_args()
 
     # Handle --create-config
@@ -733,6 +879,7 @@ For more information, visit: https://github.com/cestella/tts_helper
                 keep_chunks=args.keep_chunks,
                 verbose=args.verbose,
                 isbn=args.isbn,
+                parallelism=args.parallelism,
             )
         else:
             # Single file mode
@@ -757,4 +904,11 @@ For more information, visit: https://github.com/cestella/tts_helper
 
 
 if __name__ == "__main__":
+    # Set multiprocessing start method to avoid pickling issues
+    import multiprocessing
+
+    # 'fork' not available on all platforms, use default if not available
+    with contextlib.suppress(ValueError):
+        multiprocessing.set_start_method("fork", force=True)
+
     main()

@@ -44,6 +44,7 @@ SUPPORTED_VOICES: dict[str, list[str]] = {
         "bf_emma",
         "bf_isabella",
         "bf_lily",
+        "bf_vale",  # Added in v1.1
         # Male voices
         "bm_daniel",
         "bm_fable",
@@ -169,6 +170,8 @@ class KokoroTTSConfig(TTSConfig):
         speed: Speech speed multiplier (default: 1.0, range: 0.5-2.0)
         model_path: Path to kokoro ONNX model file (default: None, auto-download)
         voices_path: Path to voices bin file (default: None, auto-download)
+        model_url: URL to download model from (default: v1.0 model)
+        voices_url: URL to download voices from (default: v1.0 voices)
         verbose: Whether to print verbose TTS info (default: False)
     """
 
@@ -177,6 +180,8 @@ class KokoroTTSConfig(TTSConfig):
     speed: float = 1.0
     model_path: str | None = None
     voices_path: str | None = None
+    model_url: str | None = None
+    voices_url: str | None = None
     verbose: bool = False
 
     def __post_init__(self) -> None:
@@ -262,9 +267,15 @@ class KokoroTTS(TTS):
             model_path = Path(self.config.model_path or "kokoro-v1.0.onnx")
             voices_path = Path(self.config.voices_path or "voices-v1.0.bin")
 
-            # Auto-download model files if they don't exist
-            model_url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"
-            voices_url = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
+            # Determine download URLs (default to v1.0)
+            model_url = (
+                self.config.model_url
+                or "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx"
+            )
+            voices_url = (
+                self.config.voices_url
+                or "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
+            )
 
             try:
                 download_model_file(model_url, model_path, verbose=self.config.verbose)

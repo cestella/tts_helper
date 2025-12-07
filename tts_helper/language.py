@@ -41,6 +41,13 @@ _LANGUAGES: dict[str, LanguageCode] = {
         nemo="en",
         kokoro="en-us",
     ),
+    "english-gb": LanguageCode(
+        name="english-gb",
+        iso_639_1="en",
+        flores_200="eng_Latn",
+        nemo="en",
+        kokoro="en-gb",
+    ),
     "italian": LanguageCode(
         name="italian",
         iso_639_1="it",
