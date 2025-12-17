@@ -48,6 +48,128 @@ def load_config(config_path: Path) -> dict[str, Any]:
         return json.load(f)  # type: ignore[no-any-return]
 
 
+def process_audiobook_with_managed_process(
+    input_text_path: Path,
+    output_path: Path,
+    config: dict[str, Any] | None = None,
+    keep_chunks: bool = False,
+    verbose: bool = False,
+    chunk_progress: Any | None = None,
+    isbn: str | None = None,
+) -> None:
+    """Process audiobook with per-file process management and retry logic.
+
+    This wrapper handles starting/stopping a per-file process (like IndexTTS server)
+    and retries if the process crashes during processing.
+
+    Args:
+        input_text_path: Path to input text file
+        output_path: Path to save output audiobook
+        config: Configuration dictionary (None = use defaults)
+        keep_chunks: Whether to keep individual chunk files
+        verbose: Whether to print verbose progress info
+        chunk_progress: Optional tqdm progress bar for chunk progress
+        isbn: Optional ISBN for M4B metadata (enables M4B creation)
+    """
+    from tts_helper import PerFileProcessConfig, PerFileProcessManager
+
+    config = config or {}
+
+    # Get per-file process config
+    process_config_dict = config.get("per_file_process", {})
+    process_config = PerFileProcessConfig.from_dict(process_config_dict)
+
+    # Create process manager
+    process_manager = PerFileProcessManager(process_config)
+
+    # Resolve output path to actual file if directory was provided
+    # This ensures log files go to the correct location (book-specific logs/)
+    if output_path.is_dir():
+        # Get output format from config
+        stitcher_config = config.get("stitcher", {})
+        output_format = stitcher_config.get("output_format", "mp3")
+        # Construct output filename: directory/input_stem.format
+        actual_output_path = output_path / f"{input_text_path.stem}.{output_format}"
+    else:
+        actual_output_path = output_path
+
+    # Check if output already exists
+    if actual_output_path.exists():
+        if verbose:
+            print(f"Output already exists: {actual_output_path}")
+            print("Skipping processing")
+        return
+
+    # Retry logic
+    max_retries = process_config.max_retries
+    for attempt in range(max_retries + 1):
+        try:
+            with process_manager.run_for_file(input_text_path, actual_output_path):
+                # Process the audiobook while the managed process is running
+                process_audiobook(
+                    input_text_path=input_text_path,
+                    output_path=actual_output_path,
+                    config=config,
+                    keep_chunks=keep_chunks,
+                    verbose=verbose,
+                    chunk_progress=chunk_progress,
+                    isbn=isbn,
+                )
+            # Success - break out of retry loop
+            break
+
+        except Exception:
+            # Check if this was a process crash
+            if process_config.enabled and not process_manager.is_running():
+                # Process crashed during TTS - get entire log to show the error
+                log_path, log_lines = process_manager.get_log_tail(num_lines=None)
+
+                # Build command string for display
+                cmd_parts = [process_config.command] + (process_config.args or [])
+                cmd_str = " ".join(cmd_parts)
+
+                # Always print crash info (not just in verbose mode)
+                print(
+                    "\n⚠️  Managed process crashed during TTS.",
+                    file=sys.stderr,
+                )
+                print(f"Command: {cmd_str}", file=sys.stderr)
+
+                # Show entire log if available
+                if log_path and log_lines:
+                    print(f"\nEntire log from {log_path}:", file=sys.stderr)
+                    print("═" * 80, file=sys.stderr)
+                    for line in log_lines:
+                        print(line.rstrip(), file=sys.stderr)
+                    print("═" * 80, file=sys.stderr)
+                elif log_path:
+                    print(
+                        f"\nLog file exists but is empty: {log_path}", file=sys.stderr
+                    )
+                else:
+                    print(
+                        "\nNo log file was created (process likely crashed immediately on startup)",
+                        file=sys.stderr,
+                    )
+
+                if attempt < max_retries:
+                    print(
+                        f"\nRetrying ({attempt + 1}/{max_retries})...\n",
+                        file=sys.stderr,
+                    )
+                    # Retry
+                    continue
+                else:
+                    print(
+                        f"\nMaximum retries ({max_retries}) exceeded. Giving up.",
+                        file=sys.stderr,
+                    )
+                    raise
+            else:
+                # Not a process crash - re-raise the exception
+                raise
+
+
 def process_audiobook(
     input_text_path: Path,
     output_path: Path,
@@ -883,7 +1005,7 @@ For more information, visit: https://github.com/cestella/tts_helper
             )
         else:
             # Single file mode
-            process_audiobook(
+            process_audiobook_with_managed_process(
                 input_text_path=args.input,
                 output_path=args.output,
                 config=config,

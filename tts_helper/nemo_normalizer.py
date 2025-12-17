@@ -138,13 +138,22 @@ class NemoNormalizer(Normalizer):
         if not text or not text.strip():
             return text
         try:
-            sentences = self.normalizer.split_text_into_sentences(text)
-            normalized = "\n".join(
-                self.normalizer.normalize_list(
+            # Manually split on newlines to preserve sentence boundaries
+            # NeMo's split_text_into_sentences doesn't respect newlines
+            lines = [line.strip() for line in text.split("\n") if line.strip()]
+
+            # Normalize each line separately
+            normalized_lines = []
+            for line in lines:
+                sentences = self.normalizer.split_text_into_sentences(line)
+                normalized_sents = self.normalizer.normalize_list(
                     sentences, verbose=self.config.verbose, punct_post_process=True
                 )
-            )
-            return normalized
+                # Join sentences within same line with space
+                normalized_lines.append(" ".join(normalized_sents))
+
+            # Join lines with newline to preserve original structure
+            return "\n".join(normalized_lines)
         except Exception as e:
             # If normalization fails, return original text with a warning
             # This prevents the entire pipeline from breaking

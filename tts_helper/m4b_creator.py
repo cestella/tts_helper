@@ -107,7 +107,7 @@ class M4bCreator:
         if metadata.get("cover_url"):
             cover_path = self._download_cover(metadata["cover_url"], verbose)
             if cover_path:
-                print(f"  Cover art: Downloaded")
+                print("  Cover art: Downloaded")
 
         try:
             # Build m4b-tool command
@@ -208,10 +208,10 @@ class M4bCreator:
 
             # Create temporary file for cover
             # Use jpg extension (most common for book covers)
-            temp_file = tempfile.NamedTemporaryFile(
+            with tempfile.NamedTemporaryFile(
                 suffix=".jpg", delete=False, mode="wb"
-            )
-            temp_path = Path(temp_file.name)
+            ) as temp_file:
+                temp_path = Path(temp_file.name)
 
             # Download cover image
             urllib.request.urlretrieve(cover_url, temp_path)

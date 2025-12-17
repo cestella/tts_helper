@@ -4,6 +4,7 @@ import re
 from html.parser import HTMLParser
 from pathlib import Path
 
+import ftfy
 import markdown as md_renderer  # type: ignore[import-untyped]
 from bs4 import BeautifulSoup
 
@@ -11,6 +12,8 @@ try:
     import spacy
 except ImportError:
     spacy = None  # type: ignore[assignment]
+
+import pysbd
 
 from .text_normalizer import add_periods_to_headings, normalize_text_for_tts
 
@@ -90,6 +93,15 @@ def extract_markdown_chapters(
     for idx, (title, content) in enumerate(chapters, 1):
         rendered = _render_markdown_to_text(content)
         normalized = normalize_text_for_tts(rendered, language_hint=language_hint)
+
+        # Prepend chapter title to the text
+        if title:
+            # Add period only if title doesn't already end with punctuation
+            if not title.endswith((".", "!", "?")):
+                normalized = f"{title}.\n\n{normalized}"
+            else:
+                normalized = f"{title}\n\n{normalized}"
+
         per_sentence = _sentences_per_line(normalized)
         if not per_sentence or len(per_sentence.strip()) < 50:
             if verbose:
@@ -167,7 +179,7 @@ def _html_to_text(html: str) -> str:
 
 
 def _sentences_per_line(text: str, language_hint: str = "en") -> str:
-    """Segment text into sentences (one per line), preferring spaCy."""
+    """Segment text into sentences (one per line), preferring spaCy with pySBD."""
     if not text.strip():
         return ""
 
@@ -182,12 +194,37 @@ def _sentences_per_line(text: str, language_hint: str = "en") -> str:
         except Exception:
             nlp = spacy.blank("xx")
 
-        if "sentencizer" not in nlp.pipe_names:
-            nlp.add_pipe("sentencizer")
+        # Use pySBD for better sentence detection
+        from spacy.language import Language
+
+        @Language.component("pysbd_sentencizer")
+        def pysbd_sentencizer(doc):
+            """Custom sentence boundary detection using pySBD."""
+            seg = pysbd.Segmenter(language=language_hint or "en", clean=False)
+            sentences = seg.segment(doc.text)
+
+            # Set sentence boundaries
+            char_index = 0
+            sent_starts = []
+            for sent in sentences:
+                start = doc.text.find(sent, char_index)
+                if start != -1:
+                    sent_starts.append(start)
+                    char_index = start + len(sent)
+
+            for token in doc:
+                token.is_sent_start = token.idx in sent_starts
+
+            return doc
+
+        if "pysbd_sentencizer" not in nlp.pipe_names:
+            nlp.add_pipe("pysbd_sentencizer", first=True)
 
         doc = nlp(text)
         sentences = [
-            " ".join(sent.text.split()) for sent in doc.sents if sent.text.strip()
+            ftfy.fix_text(" ".join(sent.text.split()))
+            for sent in doc.sents
+            if sent.text.strip()
         ]
         return "\n".join(sentences)
     except Exception:

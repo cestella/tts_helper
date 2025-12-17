@@ -2,10 +2,14 @@
 
 import re
 
+import ftfy
+
 try:
     import spacy
 except ImportError:
     spacy = None  # type: ignore[assignment]
+
+import pysbd
 
 
 def add_periods_to_headings(html_content: str) -> str:
@@ -57,10 +61,7 @@ def _is_separator_line(line: str) -> bool:
         return True
 
     # Check if line is mostly (>80%) the same character repeated
-    if len(unique_chars) == 1 and stripped[0] in separator_chars:
-        return True
-
-    return False
+    return len(unique_chars) == 1 and stripped[0] in separator_chars
 
 
 def normalize_text_for_tts(text: str, language_hint: str | None = None) -> str:
@@ -93,14 +94,39 @@ def normalize_text_for_tts(text: str, language_hint: str | None = None) -> str:
         except Exception:
             nlp = spacy.blank("xx")
 
-        if "sentencizer" not in nlp.pipe_names:
-            nlp.add_pipe("sentencizer")
+        # Use pySBD for better sentence detection
+        from spacy.language import Language
+
+        @Language.component("pysbd_sentencizer")
+        def pysbd_sentencizer(doc):
+            """Custom sentence boundary detection using pySBD."""
+            seg = pysbd.Segmenter(language=lang_code, clean=False)
+            sentences = seg.segment(doc.text)
+
+            # Set sentence boundaries
+            char_index = 0
+            sent_starts = []
+            for sent in sentences:
+                start = doc.text.find(sent, char_index)
+                if start != -1:
+                    sent_starts.append(start)
+                    char_index = start + len(sent)
+
+            for token in doc:
+                token.is_sent_start = token.idx in sent_starts
+
+            return doc
+
+        if "pysbd_sentencizer" not in nlp.pipe_names:
+            nlp.add_pipe("pysbd_sentencizer", first=True)
 
         normalized_paragraphs: list[str] = []
         for para in paragraphs:
             doc = nlp(para)
             sentences = [
-                " ".join(sent.text.split()) for sent in doc.sents if sent.text.strip()
+                ftfy.fix_text(" ".join(sent.text.split()))
+                for sent in doc.sents
+                if sent.text.strip()
             ]
             if sentences:
                 normalized_paragraphs.append(" ".join(sentences))

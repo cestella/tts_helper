@@ -6,6 +6,7 @@ with a focus on audiobook production.
 """
 
 from .chunk import Chunk
+from .command_tts import CommandTTS, CommandTTSConfig
 from .enhancer import Enhancer, EnhancerConfig
 from .kokoro_tts import (
     KokoroTTS,
@@ -15,6 +16,7 @@ from .kokoro_tts import get_default_voice as get_kokoro_default_voice
 from .kokoro_tts import get_supported_voices as get_kokoro_voices
 from .nemo_normalizer import NemoNormalizer, NemoNormalizerConfig
 from .normalizer import Normalizer, NormalizerConfig
+from .per_file_process import PerFileProcessConfig, PerFileProcessManager
 from .pydub_stitcher import PydubStitcher, PydubStitcherConfig
 from .segmenter import Segmenter, SegmenterConfig
 from .spacy_segmenter import SpacySegmenter, SpacySegmenterConfig
@@ -45,6 +47,9 @@ __all__ = [
     "KokoroTTSConfig",
     "get_kokoro_voices",
     "get_kokoro_default_voice",
+    # Command TTS
+    "CommandTTS",
+    "CommandTTSConfig",
     # Audio stitching
     "Stitcher",
     "StitcherConfig",
@@ -55,4 +60,7 @@ __all__ = [
     "EnhancerConfig",
     "TranslationEnhancer",
     "TranslationEnhancerConfig",
+    # Process Management
+    "PerFileProcessManager",
+    "PerFileProcessConfig",
 ]

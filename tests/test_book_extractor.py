@@ -152,9 +152,10 @@ class TestMarkdownExtractor:
         assert len(files) == 2
         assert files[0].exists()
         assert files[1].exists()
-        # Markdown boilerplate should be stripped and sentences split per line
+        # Chapter title should be prepended and sentences split per line
         content = files[0].read_text(encoding="utf-8")
-        assert "CHAPTER 1" not in content
+        # Chapter title should be present at the beginning
+        assert content.startswith("CHAPTER 1.")
         assert "introduction chapter" in content
         assert "\n" in content  # sentences per line
 

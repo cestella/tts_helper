@@ -6,6 +6,7 @@ sentence boundary detection and intelligent chunking.
 """
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
 
 import spacy
@@ -26,25 +27,39 @@ class SpacySegmenterConfig(SegmenterConfig):
         strategy: Chunking strategy. Options:
                  - 'sentence_count': Group by number of sentences
                  - 'char_count': Group by character count (preserving sentence boundaries)
+                 - 'token_count': Group by BPE token count (for IndexTTS2)
         sentences_per_chunk: Number of sentences per chunk (for 'sentence_count' strategy).
                            Default: 3.
         max_chars: Maximum number of characters per chunk (for 'char_count' strategy).
                   Default: 300.
         min_chars: Minimum number of characters per chunk. Chunks smaller than this
                   will be merged with adjacent chunks. Default: 3.
+        token_target: Target number of BPE tokens per chunk (for 'token_count' strategy).
+                     If set, this takes priority over sentence_count and char_count.
+                     Default: None (use sentence/char-based segmentation).
+                     Recommended: 120 for IndexTTS2.
+        bpe_model_path: Path to SentencePiece BPE model file. If not provided and
+                       token_target is set, will auto-download from HuggingFace.
+                       Default: None (auto-download to ~/.cache/tts_helper/bpe.model).
         model_name: Optional explicit spaCy model name. If not provided,
                    will be determined from the language code.
         disable_pipes: List of spaCy pipeline components to disable for performance.
                       Default: ['ner', 'lemmatizer'].
+        use_pysbd: Whether to use pySBD for sentence boundary detection instead of
+                  spaCy's statistical model. pySBD is rule-based and better handles
+                  abbreviations and edge cases. Default: True.
     """
 
     language: str = "english"
-    strategy: Literal["sentence_count", "char_count"] = "char_count"
+    strategy: Literal["sentence_count", "char_count", "token_count"] = "char_count"
     sentences_per_chunk: int = 3
     max_chars: int = 300
     min_chars: int = 3
+    token_target: int | None = None
+    bpe_model_path: str | None = None
     model_name: str | None = None
     disable_pipes: list[str] = field(default_factory=lambda: ["ner", "lemmatizer"])
+    use_pysbd: bool = True
 
     def __post_init__(self) -> None:
         """Validate configuration after initialization."""
@@ -65,10 +80,22 @@ class SpacySegmenterConfig(SegmenterConfig):
                 )
             raise ValueError(error_msg)
 
-        if self.strategy not in ["sentence_count", "char_count"]:
+        if self.strategy not in ["sentence_count", "char_count", "token_count"]:
             raise ValueError(
-                f"strategy must be 'sentence_count' or 'char_count', got '{self.strategy}'"
+                f"strategy must be 'sentence_count', 'char_count', or 'token_count', got '{self.strategy}'"
             )
+
+        # Auto-set strategy based on token_target if provided
+        if self.token_target is not None:
+            self.strategy = "token_count"
+
+        if self.strategy == "token_count" and self.token_target is None:
+            raise ValueError(
+                "token_target must be set when using 'token_count' strategy"
+            )
+
+        if self.token_target is not None and self.token_target <= 0:
+            raise ValueError(f"token_target must be positive, got {self.token_target}")
 
         if self.sentences_per_chunk <= 0:
             raise ValueError(
@@ -109,6 +136,7 @@ class SpacySegmenter(Segmenter):
         super().__init__(config)
         self.config: SpacySegmenterConfig = config
         self._nlp: Language | None = None
+        self._tokenizer: Any | None = None  # SentencePieceProcessor
 
     @property
     def nlp(self) -> Language:
@@ -120,6 +148,7 @@ class SpacySegmenter(Segmenter):
 
         Raises:
             OSError: If the model cannot be loaded.
+            ImportError: If pySBD is requested but not installed.
         """
         if self._nlp is None:
             model_name = self.config.model_name
@@ -139,7 +168,137 @@ class SpacySegmenter(Segmenter):
                     f"Make sure it's installed: python -m spacy download {model_name}"
                 ) from e
 
+            # Add pySBD for better sentence boundary detection if enabled
+            if self.config.use_pysbd:
+                try:
+                    import pysbd
+                    from spacy.language import Language
+                except ImportError as e:
+                    raise ImportError(
+                        "pySBD is required for use_pysbd=True. "
+                        "Install it with: pip install pysbd"
+                    ) from e
+
+                # Register the component only once
+                component_name = "pysbd_sentencizer"
+                if not Language.has_factory(component_name):
+
+                    @Language.component(component_name)
+                    def pysbd_sentencizer(doc):
+                        """Custom sentence boundary detection using pySBD."""
+                        # Use pySBD to segment the text
+                        seg = pysbd.Segmenter(language="en", clean=False)
+                        sentences = seg.segment(doc.text)
+
+                        # Set sentence boundaries based on pySBD output
+                        char_index = 0
+                        sent_starts = []
+                        for sent in sentences:
+                            # Find where this sentence starts in the original text
+                            start = doc.text.find(sent, char_index)
+                            if start != -1:
+                                sent_starts.append(start)
+                                char_index = start + len(sent)
+
+                        # Mark sentence boundaries
+                        for token in doc:
+                            if token.idx in sent_starts:
+                                token.is_sent_start = True
+                            else:
+                                token.is_sent_start = False
+
+                        return doc
+
+                # Add the custom component to the pipeline
+                if component_name not in self._nlp.pipe_names:
+                    self._nlp.add_pipe(component_name, first=True)
+
         return self._nlp
+
+    def _download_bpe_model(self) -> Path:
+        """
+        Download the BPE model from HuggingFace if not already present.
+
+        Returns:
+            Path to the downloaded BPE model file.
+
+        Raises:
+            RuntimeError: If download fails.
+        """
+        # Default cache location
+        cache_dir = Path.home() / ".cache" / "tts_helper"
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        bpe_model_path = cache_dir / "bpe.model"
+
+        # If already downloaded, return it
+        if bpe_model_path.exists():
+            return bpe_model_path
+
+        # Download from HuggingFace
+        hf_url = "https://huggingface.co/IndexTeam/IndexTTS-2/resolve/main/bpe.model"
+
+        try:
+            import urllib.request
+
+            print(f"Downloading BPE model from {hf_url}...")
+            urllib.request.urlretrieve(hf_url, bpe_model_path)
+            print(f"Downloaded BPE model to {bpe_model_path}")
+            return bpe_model_path
+        except Exception as e:
+            raise RuntimeError(
+                f"Failed to download BPE model from {hf_url}: {e}"
+            ) from e
+
+    @property
+    def tokenizer(self) -> Any:
+        """
+        Lazy-load the SentencePiece tokenizer.
+
+        Returns:
+            The loaded SentencePieceProcessor.
+
+        Raises:
+            ImportError: If sentencepiece is not installed.
+            RuntimeError: If BPE model cannot be loaded.
+        """
+        if self._tokenizer is None:
+            try:
+                import sentencepiece as spm
+            except ImportError as e:
+                raise ImportError(
+                    "sentencepiece is required for token-based segmentation. "
+                    "Install it with: pip install sentencepiece"
+                ) from e
+
+            # Determine BPE model path
+            if self.config.bpe_model_path is not None:
+                bpe_path = Path(self.config.bpe_model_path)
+                if not bpe_path.exists():
+                    raise RuntimeError(
+                        f"BPE model not found at {bpe_path}. "
+                        f"Set bpe_model_path=None to auto-download."
+                    )
+            else:
+                # Auto-download
+                bpe_path = self._download_bpe_model()
+
+            # Load tokenizer
+            self._tokenizer = spm.SentencePieceProcessor()
+            self._tokenizer.Load(str(bpe_path))
+
+        return self._tokenizer
+
+    def _count_tokens(self, text: str) -> int:
+        """
+        Count the number of BPE tokens in text.
+
+        Args:
+            text: Text to tokenize.
+
+        Returns:
+            Number of tokens.
+        """
+        return len(self.tokenizer.Encode(text))
 
     def _merge_small_chunks(self, chunks: list[str]) -> list[str]:
         """
@@ -164,7 +323,8 @@ class SpacySegmenter(Segmenter):
             current = chunks[i]
 
             # If chunk is too small, try to merge with next or previous
-            if len(current) < self.config.min_chars:
+            # Use stripped length to avoid counting leading/trailing whitespace
+            if len(current.strip()) < self.config.min_chars:
                 if merged:
                     # Merge with previous chunk
                     merged[-1] = merged[-1] + " " + current
@@ -188,30 +348,92 @@ class SpacySegmenter(Segmenter):
         Segment text into chunks based on the configured strategy.
 
         This method processes the text with spaCy to detect sentence boundaries,
-        then groups sentences using one of two strategies:
+        then groups sentences using one of three strategies:
 
-        1. sentence_count: Groups a fixed number of sentences per chunk
-        2. char_count: Groups sentences while staying under max_chars limit
+        1. token_count: Groups sentences by BPE token count (IndexTTS2-optimized)
+        2. sentence_count: Groups a fixed number of sentences per chunk
+        3. char_count: Groups sentences while staying under max_chars limit
+
+        Strategy priority: token_count > sentence_count > char_count
 
         Args:
             text: The raw input text to segment.
 
         Returns:
             List of text chunks, each respecting sentence boundaries and
-            minimum/maximum character limits.
+            minimum/maximum character/token limits.
         """
         if not text or not text.strip():
             return []
 
         doc = self.nlp(text)
 
-        if self.config.strategy == "sentence_count":
+        if self.config.strategy == "token_count":
+            chunks = self._segment_by_token_count(doc.sents)
+        elif self.config.strategy == "sentence_count":
             chunks = self._segment_by_sentence_count(doc.sents)
         else:  # char_count
             chunks = self._segment_by_char_count(doc.sents)
 
-        # Merge chunks that are too small
-        chunks = self._merge_small_chunks(chunks)
+        # Merge chunks that are too small (skip for token_count as it has its own min handling)
+        if self.config.strategy != "token_count":
+            chunks = self._merge_small_chunks(chunks)
+
+        return chunks
+
+    def _segment_by_token_count(self, sentences: Any) -> list[str]:
+        """
+        Segment by BPE token count while preserving sentence boundaries.
+
+        Packs as many sentences as possible without exceeding token_target,
+        with a minimum of 1 sentence per chunk (even if it exceeds the target).
+
+        This strategy is optimized for IndexTTS2's 120-token context window.
+
+        Args:
+            sentences: spaCy sentences iterator.
+
+        Returns:
+            List of text chunks, optimized for token count.
+        """
+        chunks: list[str] = []
+        current_sentences: list[str] = []
+        current_token_count = 0
+
+        assert self.config.token_target is not None, "token_target must be set"
+
+        for sent in sentences:
+            sentence_text = sent.text.strip()
+
+            # Skip empty sentences
+            if not sentence_text:
+                continue
+
+            sentence_tokens = self._count_tokens(sentence_text)
+
+            # If we have no sentences yet, add this one regardless of size
+            # (minimum 1 sentence per chunk)
+            if not current_sentences:
+                current_sentences.append(sentence_text)
+                current_token_count = sentence_tokens
+                continue
+
+            # Check if adding this sentence would exceed token_target
+            potential_token_count = current_token_count + sentence_tokens
+
+            if potential_token_count <= self.config.token_target:
+                # Add sentence to current chunk
+                current_sentences.append(sentence_text)
+                current_token_count = potential_token_count
+            else:
+                # Save current chunk and start new one
+                chunks.append(" ".join(current_sentences))
+                current_sentences = [sentence_text]
+                current_token_count = sentence_tokens
+
+        # Add final chunk if not empty
+        if current_sentences:
+            chunks.append(" ".join(current_sentences))
 
         return chunks
 
@@ -383,7 +605,9 @@ class SpacySegmenter(Segmenter):
             or get_model_for_language(self.config.language).model_name  # type: ignore[union-attr]
         )
 
-        if self.config.strategy == "sentence_count":
+        if self.config.strategy == "token_count":
+            strategy_info = f"token_target={self.config.token_target}"
+        elif self.config.strategy == "sentence_count":
             strategy_info = f"sentences_per_chunk={self.config.sentences_per_chunk}"
         else:
             strategy_info = f"max_chars={self.config.max_chars}"

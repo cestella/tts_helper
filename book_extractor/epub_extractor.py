@@ -3,6 +3,8 @@
 import re
 from pathlib import Path
 
+import ftfy
+
 try:
     import spacy
 except ImportError:
@@ -16,6 +18,8 @@ except ImportError:
     ebooklib = None
     epub = None
     trafilatura = None  # type: ignore[assignment]
+
+import pysbd
 
 from .text_normalizer import add_periods_to_headings, normalize_text_for_tts
 
@@ -66,9 +70,19 @@ def _normalize_text_for_tts(text: str, language_hint: str | None = None) -> str:
 
 
 def extract_text_from_html(
-    html_content: str, language_hint: str = "en"
+    html_content: str, language_hint: str = "en", include_title_in_text: bool = True
 ) -> tuple[str | None, str]:
-    """Extract title and text from HTML content using trafilatura."""
+    """Extract title and text from HTML content using trafilatura.
+
+    Args:
+        html_content: HTML content to extract from
+        language_hint: Language hint for text normalization
+        include_title_in_text: If True, prepend the title to the extracted text
+                              (followed by a period and 2 newlines)
+
+    Returns:
+        Tuple of (title, extracted_text)
+    """
     if trafilatura is None:
         raise ImportError(
             "trafilatura is required for EPUB extraction. Install with: pip install trafilatura"
@@ -94,6 +108,14 @@ def extract_text_from_html(
     language = meta.language if meta else None
     if not title:
         title = _extract_heading_title(html_content)
+
+    # Prepend title to text if requested
+    if include_title_in_text and title:
+        # Add period only if title doesn't already end with punctuation
+        if not title.endswith((".", "!", "?")):
+            text = f"{title}.\n\n{text}"
+        else:
+            text = f"{title}\n\n{text}"
 
     normalized_text = _sentences_per_line(
         _normalize_text_for_tts(text, language_hint=language_hint or language),
@@ -222,7 +244,7 @@ def extract_epub_chapters(
 
 
 def _sentences_per_line(text: str) -> str:
-    """Segment text into sentences (one per line), preferring spaCy."""
+    """Segment text into sentences (one per line), preferring spaCy with pySBD."""
     if not text.strip():
         return ""
 
@@ -237,12 +259,37 @@ def _sentences_per_line(text: str) -> str:
         except Exception:
             nlp = spacy.blank("xx")
 
-        if "sentencizer" not in nlp.pipe_names:
-            nlp.add_pipe("sentencizer")
+        # Use pySBD for better sentence detection
+        from spacy.language import Language
+
+        @Language.component("pysbd_sentencizer")
+        def pysbd_sentencizer(doc):
+            """Custom sentence boundary detection using pySBD."""
+            seg = pysbd.Segmenter(language="en", clean=False)
+            sentences = seg.segment(doc.text)
+
+            # Set sentence boundaries
+            char_index = 0
+            sent_starts = []
+            for sent in sentences:
+                start = doc.text.find(sent, char_index)
+                if start != -1:
+                    sent_starts.append(start)
+                    char_index = start + len(sent)
+
+            for token in doc:
+                token.is_sent_start = token.idx in sent_starts
+
+            return doc
+
+        if "pysbd_sentencizer" not in nlp.pipe_names:
+            nlp.add_pipe("pysbd_sentencizer", first=True)
 
         doc = nlp(text)
         sentences = [
-            " ".join(sent.text.split()) for sent in doc.sents if sent.text.strip()
+            ftfy.fix_text(" ".join(sent.text.split()))
+            for sent in doc.sents
+            if sent.text.strip()
         ]
         return "\n".join(sentences)
     except Exception:
