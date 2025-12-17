@@ -192,6 +192,8 @@ def process_audiobook(
     """
     from tts_helper import (
         Chunk,
+        CommandTTS,
+        CommandTTSConfig,
         KokoroTTS,
         KokoroTTSConfig,
         NemoNormalizer,
@@ -311,9 +313,12 @@ def process_audiobook(
     if tts_engine == "kokoro":
         tts_config = KokoroTTSConfig.from_dict(tts_config_dict)
         tts = KokoroTTS(tts_config)
+    elif tts_engine == "command":
+        tts_config = CommandTTSConfig.from_dict(tts_config_dict)
+        tts = CommandTTS(tts_config)
     else:
         print(
-            f"Error: Unknown TTS engine '{tts_engine}'. Supported engine: 'kokoro'",
+            f"Error: Unknown TTS engine '{tts_engine}'. Supported engines: 'kokoro', 'command'",
             file=sys.stderr,
         )
         sys.exit(1)
