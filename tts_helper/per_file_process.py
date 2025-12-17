@@ -125,7 +125,15 @@ class PerFileProcessManager:
             # e.g., output: ~/audiobooks/foo/chapters_mp3/file.mp3
             #       logs:   ~/audiobooks/foo/logs/
             output_dir = output_path.parent
-            log_dir = output_dir.parent / "logs"
+            parent_dir = output_dir.parent
+
+            # Safety check: don't try to create logs in root or other system directories
+            # If parent is root (/) or a system directory, fall back to safe default
+            if parent_dir == parent_dir.parent or str(parent_dir) in ["/", "/tmp", "/var"]:
+                # Fall back to creating logs alongside the output file
+                log_dir = output_dir / "process_logs"
+            else:
+                log_dir = parent_dir / "logs"
         else:
             # Fallback to current directory
             log_dir = Path("./process_logs")
